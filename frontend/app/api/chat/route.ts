@@ -27,6 +27,7 @@ export async function POST(req: Request) {
       - Ha jelszóról van szó: mondd el, hogy a Login oldalon van "Elfelejtett jelszó" gomb.
       - Ha eseményekről van szó: mondd el, hogy bejelentkezés után a Dashboardon lehet kezelni őket.
       - Bármi mással kapcsolatban válaszolj készségesen.
+      - Ha a felhasználó elveszíti a többlépcsős azonosításhoz szükséges kódját, akkor javasold, hogy kérjen emberi segítéget.
 
       A felhasználó üzenete: ${message}
     `;

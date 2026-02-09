@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
-  const [showMFA, setShowMFA] = useState(false); // <--- ÚJ: MFA mező láthatósága
+  const [showMFA, setShowMFA] = useState(false);
   const router = useRouter();
 
   async function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
@@ -16,23 +16,21 @@ export default function LoginPage() {
     const formData = new FormData(event.currentTarget);
     const username = formData.get('username') as string;
     const password = formData.get('password') as string;
-    const mfaCode = formData.get('mfa_code') as string; // <--- Kivesszük a kódot is
+    const mfaCode = formData.get('mfa_code') as string; 
 
     try {
-      // FIGYELEM: Most már JSON-t küldünk, nem x-www-form-urlencoded-et!
       const response = await fetch("http://localhost:8000/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           username, 
           password,
-          mfa_code: mfaCode || null // Ha üres, null-t küldünk
+          mfa_code: mfaCode || null
         }),
       });
 
-      // Külön kezeljük a 403-as hibát (MFA Szükséges)
       if (response.status === 403) {
-        setShowMFA(true); // Megjelenítjük a mezőt
+        setShowMFA(true);
         alert("Kérjük, adja meg a hitelesítő kódot!");
         setIsLoading(false);
         return;

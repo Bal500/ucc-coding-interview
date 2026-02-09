@@ -132,7 +132,7 @@ export default function DashboardPage() {
           <form onSubmit={handleAddEvent} className="space-y-4">
             <input value={newTitle} onChange={e => setNewTitle(e.target.value)} className="w-full p-2 bg-black border border-zinc-700 rounded text-white" placeholder="Cím" required />
             <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="w-full p-2 bg-black border border-zinc-700 rounded text-white" required />
-            <textarea value={newDesc} onChange={e => setNewDesc(e.target.value)} className="w-full p-2 bg-black border border-zinc-700 rounded text-white h-24" placeholder="Leírás..." required />
+            <textarea value={newDesc} onChange={e => setNewDesc(e.target.value)} className="w-full p-2 bg-black border border-zinc-700 rounded text-white h-24" placeholder="Leírás..." />
             <button type="submit" className="w-full py-2 bg-red-700 hover:bg-red-600 text-white font-bold rounded">Hozzáadás</button>
           </form>
         </div>
