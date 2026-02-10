@@ -196,5 +196,20 @@ async def delete_event(event_id: int, session: Session = Depends(get_session)):
     session.commit()
     return {"message": "Esemény törölve"}
 
+@app.put("/events/{event_id}", response_model=Event)
+async def update_event(event_id: int, event_update: Event, session: Session = Depends(get_session)):
+    db_event = session.get(Event, event_id)
+    if not db_event:
+        raise HTTPException(status_code=404, detail="Esemény nem található")
+
+    db_event.title = event_update.title
+    db_event.start_date = event_update.start_date
+    db_event.end_date = event_update.end_date
+    db_event.description = event_update.description    
+    session.add(db_event)
+    session.commit()
+    session.refresh(db_event)
+    return db_event
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
