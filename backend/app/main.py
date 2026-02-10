@@ -174,47 +174,6 @@ async def confirm_reset(data: ResetConfirm, session: Session = Depends(get_sessi
 
     return {"message": "Sikeres jelszócsere!"}
 
-SCOPES = ['https://www.googleapis.com/auth/calendar']
-SERVICE_ACCOUNT_FILE = 'credentials.json'
-CALENDAR_ID = 'blaisemarkano@gmail.com' 
-
-def add_to_google_calendar(event_data):
-    try:
-        creds = service_account.Credentials.from_service_account_file(
-            SERVICE_ACCOUNT_FILE, scopes=SCOPES)
-        service = build('calendar', 'v3', credentials=creds)
-
-        start_time = f"{event_data.date}T09:00:00"
-        end_time = f"{event_data.date}T10:00:00"
-
-        event = {
-            'summary': event_data.title,
-            'description': event_data.description,
-            'start': {
-                'dateTime': start_time,
-                'timeZone': 'Europe/Budapest',
-            },
-            'end': {
-                'dateTime': end_time,
-                'timeZone': 'Europe/Budapest',
-            },
-            'reminders': {
-                'useDefault': False,
-                'overrides': [
-                    {'method': 'email', 'minutes': 24 * 60},
-                    {'method': 'popup', 'minutes': 10},
-                ],
-            },
-        }
-
-        event = service.events().insert(calendarId=CALENDAR_ID, body=event).execute()
-        print(f"Esemény létrehozva a Google Naptárban: {event.get('htmlLink')}")
-        return True
-
-    except Exception as e:
-        print(f"Hiba a Google Naptár integrációnál: {e}")
-        return False
-
 @app.post("/events", response_model=Event)
 async def create_event(event: Event, session: Session = Depends(get_session)):
     session.add(event)
