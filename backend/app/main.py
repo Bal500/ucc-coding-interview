@@ -179,7 +179,6 @@ async def create_event(event: Event, session: Session = Depends(get_session)):
     session.add(event)
     session.commit()
     session.refresh(event)
-    add_to_google_calendar(event)
     return event
 
 @app.get("/events", response_model=List[Event])
