@@ -41,6 +41,8 @@ class Event(SQLModel, table=True):
     start_date: str  
     end_date: str
     description: Optional[str] = None
+    owner: Optional[str] = None
+    participants: Optional[str] = None
 
 class LoginRequest(BaseModel):
     username: str
@@ -60,11 +62,25 @@ class MFAEnableRequest(BaseModel):
 class MFAVerifyRequest(BaseModel):
     username: str
     code: str
+    
+class UserCreate(BaseModel):
+    username: str
+    password: str
 
 
 def get_session():
     with Session(engine) as session:
         yield session
+
+async def get_current_user(token: str = Depends(oauth2_scheme), session: Session = Depends(get_session)):
+    user = session.exec(select(User).where(User.username == token)).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Érvénytelen hitelesítés",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return user
 
 def get_password_hash(password):
     return pwd_context.hash(password)
@@ -107,7 +123,8 @@ async def login(data: LoginRequest, session: Session = Depends(get_session)):
     return {
         "access_token": user.username, 
         "token_type": "bearer", 
-        "mfa_enabled": user.mfa_enabled
+        "mfa_enabled": user.mfa_enabled,
+        "role": user.role
     }
 
 @app.post("/mfa/setup")
@@ -175,41 +192,113 @@ async def confirm_reset(data: ResetConfirm, session: Session = Depends(get_sessi
 
     return {"message": "Sikeres jelszócsere!"}
 
+def add_owner_to_participants(owner: str, participants_str: Optional[str]) -> str:
+    parts = [p.strip() for p in (participants_str or "").split(",") if p.strip()]
+    
+    if owner not in parts:
+        parts.insert(0, owner)
+    
+    return ", ".join(parts)
+
 @app.post("/events", response_model=Event)
-async def create_event(event: Event, session: Session = Depends(get_session)):
+async def create_event(
+    event: Event, 
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    event.owner = current_user.username
+    event.participants = add_owner_to_participants(event.owner, event.participants)
     session.add(event)
     session.commit()
     session.refresh(event)
     return event
 
 @app.get("/events", response_model=List[Event])
-async def read_events(session: Session = Depends(get_session)):
-    events = session.exec(select(Event)).all()
-    return events
-
-@app.delete("/events/{event_id}")
-async def delete_event(event_id: int, session: Session = Depends(get_session)):
-    event = session.get(Event, event_id)
-    if not event:
-        raise HTTPException(status_code=404, detail="Esemény nem található")
-    session.delete(event)
-    session.commit()
-    return {"message": "Esemény törölve"}
+async def read_events(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    all_events = session.exec(select(Event)).all()
+    
+    my_events = []
+    for event in all_events:
+        if event.owner == current_user.username:
+            my_events.append(event)
+        
+        elif event.participants:
+            participant_list = [p.strip() for p in event.participants.split(",")]
+            
+            if current_user.username in participant_list:
+                my_events.append(event)
+            
+    return my_events
 
 @app.put("/events/{event_id}", response_model=Event)
-async def update_event(event_id: int, event_update: Event, session: Session = Depends(get_session)):
+async def update_event(
+    event_id: int, 
+    event_update: Event, 
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
     db_event = session.get(Event, event_id)
     if not db_event:
         raise HTTPException(status_code=404, detail="Esemény nem található")
+    
+    if db_event.owner != current_user.username:
+        raise HTTPException(status_code=403, detail="Csak a saját eseményedet szerkesztheted!")
 
     db_event.title = event_update.title
     db_event.start_date = event_update.start_date
     db_event.end_date = event_update.end_date
-    db_event.description = event_update.description    
+    db_event.description = event_update.description
+    db_event.participants = event_update.participants 
+
     session.add(db_event)
     session.commit()
     session.refresh(db_event)
     return db_event
+
+@app.delete("/events/{event_id}")
+async def delete_event(
+    event_id: int, 
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    event = session.get(Event, event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Esemény nem található")
+    
+    if event.owner != current_user.username:
+        raise HTTPException(status_code=403, detail="Csak a saját eseményedet törölheted!")
+    
+    session.delete(event)
+    session.commit()
+    return {"message": "Esemény törölve"}
+
+@app.post("/users", status_code=201)
+async def create_user(
+    user_data: UserCreate, 
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+    ):
+    
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Nincs jogosultságod ehhez a művelethez!")
+    
+    existing_user = session.exec(select(User).where(User.username == user_data.username)).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Ez a felhasználónév már foglalt!")
+
+    new_user = User(
+        username=user_data.username,
+        hashed_password=get_password_hash(user_data.password),
+        role="user",
+        mfa_enabled=False
+    )
+    
+    session.add(new_user)
+    session.commit()
+    return {"message": f"Felhasználó ({user_data.username}) sikeresen létrehozva!"}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

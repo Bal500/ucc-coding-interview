@@ -42,6 +42,7 @@ export default function LoginPage() {
       
       localStorage.setItem("token", data.access_token);
       localStorage.setItem("username", username);
+      localStorage.setItem("role", data.role);
       
       router.push("/dashboard");
 
