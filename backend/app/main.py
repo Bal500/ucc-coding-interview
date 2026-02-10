@@ -38,7 +38,8 @@ class User(SQLModel, table=True):
 class Event(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str
-    date: str
+    start_date: str  
+    end_date: str
     description: Optional[str] = None
 
 class LoginRequest(BaseModel):

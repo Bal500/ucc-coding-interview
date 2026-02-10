@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
+import { Calendar, dateFnsLocalizer, View, Views } from 'react-big-calendar';
 import format from 'date-fns/format';
 import parse from 'date-fns/parse';
 import startOfWeek from 'date-fns/startOfWeek';
@@ -12,19 +12,15 @@ import hu from 'date-fns/locale/hu';
 import "react-big-calendar/lib/css/react-big-calendar.css"; 
 
 const locales = { 'hu': hu };
-
 const localizer = dateFnsLocalizer({
-  format,
-  parse,
-  startOfWeek,
-  getDay,
-  locales,
+  format, parse, startOfWeek, getDay, locales,
 });
 
 interface EventItem {
   id: number;
   title: string;
-  date: string;
+  start_date: string;
+  end_date: string;
   description?: string;
 }
 
@@ -33,7 +29,6 @@ interface CalendarEvent {
   title: string;
   start: Date;
   end: Date;
-  allDay?: boolean;
   resource?: any;
 }
 
@@ -46,8 +41,15 @@ export default function DashboardPage() {
 
   const [activeTab, setActiveTab] = useState<'list' | 'calendar'>('list');
   
+  const [date, setDate] = useState(new Date());
+  const [view, setView] = useState<View>(Views.MONTH);
+
+  const onNavigate = useCallback((newDate: Date) => setDate(newDate), [setDate]);
+  const onView = useCallback((newView: View) => setView(newView), [setView]);
+
   const [newTitle, setNewTitle] = useState("");
-  const [newDate, setNewDate] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [newDesc, setNewDesc] = useState("");
 
   useEffect(() => {
@@ -67,19 +69,13 @@ export default function DashboardPage() {
       const data: EventItem[] = await res.json();
       setEvents(data);
 
-      const formattedEvents: CalendarEvent[] = data.map(event => {
-        const startDate = new Date(event.date);
-        const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); 
-
-        return {
-          id: event.id,
-          title: event.title,
-          start: startDate,
-          end: endDate,
-          allDay: false,
-          resource: event.description
-        };
-      });
+      const formattedEvents: CalendarEvent[] = data.map(event => ({
+        id: event.id,
+        title: event.title,
+        start: new Date(event.start_date),
+        end: new Date(event.end_date),
+        resource: event.description
+      }));
       setCalendarEvents(formattedEvents);
 
     } catch (err) { console.error(err); }
@@ -87,12 +83,24 @@ export default function DashboardPage() {
 
   const handleAddEvent = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (new Date(endDate) < new Date(startDate)) {
+        alert("A befejezés nem lehet korábban, mint a kezdés!");
+        return;
+    }
+
     await fetch("http://localhost:8000/events", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: newTitle, date: newDate, description: newDesc }),
+      body: JSON.stringify({ 
+        title: newTitle, 
+        start_date: startDate, 
+        end_date: endDate, 
+        description: newDesc 
+      }),
     });
-    setNewTitle(""); setNewDate(""); setNewDesc("");
+    
+    setNewTitle(""); setStartDate(""); setEndDate(""); setNewDesc("");
     fetchEvents();
   };
 
@@ -107,18 +115,13 @@ export default function DashboardPage() {
     router.push("/login");
   };
 
-  const formatListDate = (dateString: string) => {
-    try {
-        return format(new Date(dateString), "yyyy. MM. dd. HH:mm", { locale: hu });
-    } catch (e) {
-        return dateString;
-    }
+  const formatListDate = (d: string) => {
+    try { return format(new Date(d), "yyyy. MM. dd. HH:mm", { locale: hu }); } catch (e) { return d; }
   };
 
   return (
     <div className="min-h-screen bg-black text-gray-100 font-sans p-8 relative">
       
-      {/* fejlec */}
       <header className="flex justify-between items-center mb-8 border-b border-zinc-800 pb-6">
         <div>
           <h1 className="text-3xl font-bold text-white tracking-tight">
@@ -131,51 +134,35 @@ export default function DashboardPage() {
         </button>
       </header>
 
-      {/* nezet */}
       <div className="flex justify-center mb-8">
         <div className="bg-zinc-900 p-1 rounded-lg border border-zinc-800 flex gap-1">
-            <button 
-              onClick={() => setActiveTab('list')}
-              className={`px-6 py-2 rounded-md text-sm font-bold transition-all ${
-                activeTab === 'list' 
-                ? 'bg-zinc-800 text-white shadow-lg border border-zinc-700' 
-                : 'text-zinc-500 hover:text-zinc-300'
-              }`}
-            >
+            <button onClick={() => setActiveTab('list')} className={`px-6 py-2 rounded-md text-sm font-bold transition-all ${activeTab === 'list' ? 'bg-zinc-800 text-white shadow-lg border border-zinc-700' : 'text-zinc-500 hover:text-zinc-300'}`}>
               📋 Kompakt Nézet
             </button>
-            <button 
-              onClick={() => setActiveTab('calendar')}
-              className={`px-6 py-2 rounded-md text-sm font-bold transition-all ${
-                activeTab === 'calendar' 
-                ? 'bg-zinc-800 text-white shadow-lg border border-zinc-700' 
-                : 'text-zinc-500 hover:text-zinc-300'
-              }`}
-            >
+            <button onClick={() => setActiveTab('calendar')} className={`px-6 py-2 rounded-md text-sm font-bold transition-all ${activeTab === 'calendar' ? 'bg-zinc-800 text-white shadow-lg border border-zinc-700' : 'text-zinc-500 hover:text-zinc-300'}`}>
               📅 Naptár Nézet
             </button>
         </div>
       </div>
 
       <main className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-[calc(100vh-250px)]">
-        
         <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800 h-fit shadow-xl">
           <h2 className="text-xl font-bold mb-4 text-white">Új Esemény</h2>
           <form onSubmit={handleAddEvent} className="space-y-4">
             <div>
-              <label className="text-xs text-zinc-400">Megnevezés</label>
-              <input value={newTitle} onChange={e => setNewTitle(e.target.value)} className="w-full p-2 bg-black border border-zinc-700 rounded text-white mt-1" placeholder="Pl. Meeting" required />
+                <label className="text-xs text-zinc-400">Megnevezés</label>
+                <input value={newTitle} onChange={e => setNewTitle(e.target.value)} className="w-full p-2 bg-black border border-zinc-700 rounded text-white mt-1" placeholder="Pl. Meeting" required />
             </div>
             
-            <div>
-                <label className="text-xs text-zinc-400">Időpont</label>
-                <input 
-                  type="datetime-local" 
-                  value={newDate} 
-                  onChange={e => setNewDate(e.target.value)} 
-                  className="w-full p-2 bg-black border border-zinc-700 rounded text-white mt-1 [color-scheme:dark]" 
-                  required 
-                />
+            <div className="grid grid-cols-2 gap-2">
+                <div>
+                    <label className="text-xs text-zinc-400">Kezdete</label>
+                    <input type="datetime-local" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full p-2 bg-black border border-zinc-700 rounded text-white mt-1 [color-scheme:dark]" required />
+                </div>
+                <div>
+                    <label className="text-xs text-zinc-400">Vége</label>
+                    <input type="datetime-local" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full p-2 bg-black border border-zinc-700 rounded text-white mt-1 [color-scheme:dark]" required />
+                </div>
             </div>
 
             <div>
@@ -197,10 +184,16 @@ export default function DashboardPage() {
                 <div key={event.id} className="bg-zinc-900/50 p-4 rounded-xl border border-zinc-800 flex justify-between items-center group hover:border-zinc-600 transition-colors">
                   <div>
                     <h3 className="text-lg font-bold text-white">{event.title}</h3> 
-                    <span className="text-sm text-red-400 bg-red-900/20 px-2 py-0.5 rounded border border-red-900/30">
-                      {formatListDate(event.date)}
-                    </span>
-                    {event.description && <p className="text-zinc-400 text-sm mt-1">{event.description}</p>}
+                    <div className="flex gap-2 text-sm mt-1">
+                        <span className="text-red-400 bg-red-900/20 px-2 py-0.5 rounded border border-red-900/30">
+                            {formatListDate(event.start_date)}
+                        </span>
+                        <span className="text-zinc-500">➝</span>
+                        <span className="text-red-400 bg-red-900/20 px-2 py-0.5 rounded border border-red-900/30">
+                            {formatListDate(event.end_date)}
+                        </span>
+                    </div>
+                    {event.description && <p className="text-zinc-400 text-sm mt-2">{event.description}</p>}
                   </div>
                   <button onClick={() => handleDelete(event.id)} className="text-zinc-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-2">🗑️</button>
                 </div>
@@ -215,9 +208,14 @@ export default function DashboardPage() {
                 endAccessor="end"
                 style={{ height: '100%' }}
                 culture='hu'
+                date={date}
+                view={view}
+                onNavigate={onNavigate}
+                onView={onView}
+                
                 messages={{ next: "Következő", previous: "Előző", today: "Ma", month: "Hónap", week: "Hét", day: "Nap" }}
                 eventPropGetter={() => ({
-                  style: { backgroundColor: '#b91c1c', color: 'white', borderRadius: '4px', border: 'none' }
+                    style: { backgroundColor: '#b91c1c', color: 'white', borderRadius: '4px', border: 'none' }
                 })}
               />
             </div>
