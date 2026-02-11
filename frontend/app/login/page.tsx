@@ -1,8 +1,8 @@
 "use client";
 
 import { SyntheticEvent, useState } from 'react'; 
-import HelpDesk from '@/components/HelpDesk'; 
 import { useRouter } from 'next/navigation';
+import HelpDesk from '@/components/HelpDesk';
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -56,11 +56,11 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-black text-gray-100 flex items-center justify-center font-sans">
       <div className="max-w-md w-full p-8 bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-800">
-        
         <h2 className="text-3xl font-bold text-center mb-8 text-white tracking-tight">
           Eseménykezelő <span className="text-red-600">Login</span>
         </h2>
         
+        {/* MFA vizsgálat, vagy betöltés */}
         <form onSubmit={handleSubmit} className="space-y-6">
           {!showMFA && (
             <>
@@ -68,7 +68,6 @@ export default function LoginPage() {
                 <label className="block text-sm font-medium mb-2 text-zinc-400">Felhasználónév</label>
                 <input name="username" type="text" className="w-full p-3 bg-black border border-zinc-700 rounded text-white" placeholder="admin" required />
               </div>
-              
               <div>
                 <label className="block text-sm font-medium mb-2 text-zinc-400">Jelszó</label>
                 <input name="password" type="password" className="w-full p-3 bg-black border border-zinc-700 rounded text-white" placeholder="••••••••" required />
@@ -76,7 +75,6 @@ export default function LoginPage() {
             </>
           )}
 
-          {/* MFA */}
           {showMFA && (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
               <label className="block text-sm font-medium mb-2 text-red-500 font-bold">Kétlépcsős Kód (MFA)</label>
@@ -103,13 +101,15 @@ export default function LoginPage() {
         </form>
 
         {!showMFA && (
-            <div className="mt-6 text-center">
+          <div className="mt-6 text-center">
             <button type="button" onClick={() => router.push("/login/reset")} className="text-sm text-zinc-500 hover:text-red-400 underline decoration-dotted">
-                Elfelejtettem a jelszavam
+              Elfelejtettem a jelszavam
             </button>
-            </div>
+          </div>
         )}
       </div>
+
+      {/* CHAT GOMB */}
       <HelpDesk />
     </div>
   );
