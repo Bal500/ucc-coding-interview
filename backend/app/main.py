@@ -12,7 +12,7 @@ import uvicorn, secrets, pyotp, qrcode, io, base64, datetime
 
 load_dotenv()
 
-GOOGLE_API_KEY = os.getenv("GEMINI_API_KEY")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 client = None
 has_ai = False
 
@@ -20,11 +20,11 @@ if GOOGLE_API_KEY:
     try:
         client = genai.Client(api_key=GOOGLE_API_KEY)
         has_ai = True
-        print("--- GOOGLE AI KLIENS AKTÍV ---")
+        print("GOOGLE AI KLIENS AKTÍV")
     except Exception as e:
         print(f"Hiba az AI inicializálásakor: {e}")
 else:
-    print("--- FIGYELEM: NINCS GOOGLE_API_KEY BEÁLLÍTVA (AI kikapcsolva) ---")
+    print("FIGYELEM: NINCS GOOGLE_API_KEY BEÁLLÍTVA (AI kikapcsolva)")
 
 sqlite_file_name = "database.db"
 sqlite_url = f"sqlite:///{sqlite_file_name}"
@@ -133,13 +133,15 @@ def on_startup():
     with Session(engine) as session:
         user = session.exec(select(User).where(User.username == "admin")).first()
         if not user:
-            print("--- ADMIN GENERÁLÁSA... ---")
+            print("ADMIN GENERÁLÁSA")
             admin_user = User(
                 username=os.getenv("ADMIN_USERNAME"),
                 hashed_password=get_password_hash(os.getenv("ADMIN_PASSWORD"))
             )
             session.add(admin_user)
             session.commit()
+        else:
+            print("ADMIN MÁR LÉTEZIK")
 
 @app.get("/")
 async def root():
