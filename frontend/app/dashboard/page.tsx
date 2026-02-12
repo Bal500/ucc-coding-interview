@@ -8,6 +8,7 @@ import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { hu } from 'date-fns/locale';
 import "react-big-calendar/lib/css/react-big-calendar.css"; 
 import Alert from '@/components/Alert';
+import ConfirmModal from '@/components/ConfirmModal';
 
 const locales = { 'hu': hu };
 const localizer = dateFnsLocalizer({
@@ -46,6 +47,9 @@ export default function DashboardPage() {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [activeTab, setActiveTab] = useState<'list' | 'calendar' | 'helpdesk'>('list');
+
+  // CONFIRM MODAL STATE
+  const [deleteId, setDeleteId] = useState<number | null>(null);
 
   // ALERT STATE ÉS FÜGGVÉNY
   const [alertData, setAlertData] = useState<{ msg: string | null; type: 'error' | 'success' | 'info' }>({
@@ -192,10 +196,20 @@ export default function DashboardPage() {
 
   const resetForm = () => { setEditId(null); setNewTitle(""); setStartDate(""); setEndDate(""); setNewDesc(""); setNewParticipants(""); };
 
-  const handleDelete = async (id: number) => {
+  // kérésre megnyitjuk a modalt
+  const askDelete = (id: number) => {
+    setDeleteId(id);
+  };
+
+  // HA ok
+  const confirmDelete = async () => {
+    if (!deleteId) return;
     const token = localStorage.getItem("token");
-    if(!confirm("Biztosan törölni szeretnéd?")) return;
-    const res = await fetch(`http://localhost:8000/events/${id}`, { method: "DELETE", headers: { "Authorization": `Bearer ${token}` } });
+    const res = await fetch(`http://localhost:8000/events/${deleteId}`, { 
+      method: "DELETE", 
+      headers: { "Authorization": `Bearer ${token}` } 
+    });
+
     if (!res.ok) { 
       const err = await res.json(); 
       showAlert(`Hiba: ${err.detail}`, "error"); 
@@ -203,6 +217,7 @@ export default function DashboardPage() {
       showAlert("Esemény törölve!", "success");
       fetchEvents(); 
     }
+    setDeleteId(null);
   };
 
   const handleCreateUser = async (e: React.FormEvent) => {
@@ -402,7 +417,7 @@ export default function DashboardPage() {
                   {event.owner === user && (
                     <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => handleEditClick(event)} className="p-2 bg-zinc-800 hover:bg-yellow-600 hover:text-white rounded text-zinc-400 transition-colors">✏️</button>
-                      <button onClick={() => handleDelete(event.id)} className="p-2 bg-zinc-800 hover:bg-red-600 hover:text-white rounded text-zinc-400 transition-colors">🗑️</button>
+                      <button onClick={() => askDelete(event.id)} className="p-2 bg-zinc-800 hover:bg-red-600 hover:text-white rounded text-zinc-400 transition-colors">🗑️</button>
                     </div>
                   )}
                 </div>
@@ -501,7 +516,7 @@ export default function DashboardPage() {
           {contextMenu.event.resource.owner === user ? (
             <>
               <button onClick={() => { handleCalendarEdit(contextMenu.event); setContextMenu(null); }} className="w-full text-left px-4 py-2 text-sm text-white hover:bg-zinc-700">✏️ Szerkesztés</button>
-              <button onClick={() => { handleDelete(contextMenu.event.id); setContextMenu(null); }} className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-900/30 border-t border-zinc-700">🗑️ Törlés</button>
+              <button onClick={() => { askDelete(contextMenu.event.id); setContextMenu(null); }} className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-900/30 border-t border-zinc-700">🗑️ Törlés</button>
             </>
           ) : <div className="px-4 py-2 text-sm text-zinc-400">Tulajdonos: {contextMenu.event.resource.owner}</div>}
         </div>
@@ -535,11 +550,18 @@ export default function DashboardPage() {
 
       <HelpDesk />
 
-      {/* ALERT */}
       <Alert 
         message={alertData.msg} 
         type={alertData.type} 
         onClose={() => setAlertData({ ...alertData, msg: null })} 
+      />
+
+      <ConfirmModal 
+        isOpen={deleteId !== null}
+        title="Törlés megerősítése"
+        message="Biztosan törölni szeretnéd ezt az eseményt? Ez a művelet nem vonható vissza."
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteId(null)}
       />
     </div>
   );
