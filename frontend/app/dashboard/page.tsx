@@ -559,7 +559,7 @@ export default function DashboardPage() {
       <ConfirmModal 
         isOpen={deleteId !== null}
         title="Törlés megerősítése"
-        message="Biztosan törölni szeretnéd ezt az eseményt? Ez a művelet nem vonható vissza."
+        message={`Biztosan törölni szeretnéd ezt az eseményt?\nEz a művelet nem vonható vissza.`}
         onConfirm={confirmDelete}
         onCancel={() => setDeleteId(null)}
       />

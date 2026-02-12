@@ -23,7 +23,7 @@ export default function ConfirmModal({ isOpen, title, message, onConfirm, onCanc
             className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl shadow-2xl max-w-sm w-full relative z-10"
           >
             <h3 className="text-xl font-bold text-white mb-2">{title}</h3>
-            <p className="text-zinc-400 text-sm mb-6">{message}</p>
+            <p className="text-zinc-400 text-sm mb-6 whitespace-pre-line">{message}</p>
             <div className="flex gap-3">
               <button 
                 onClick={onCancel}
