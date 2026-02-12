@@ -2,13 +2,24 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Alert from '@/components/Alert';
 
 export default function ResetPage() {
   const [step, setStep] = useState(1);
   const [username, setUsername] = useState("");
   const [token, setToken] = useState("");
   const [newPassword, setNewPassword] = useState("");
+
+  const [alertData, setAlertData] = useState<{ msg: string | null; type: 'error' | 'success' | 'info' }>({
+    msg: null,
+    type: 'info'
+  });
+
   const router = useRouter();
+
+  const showAlert = (msg: string, type: 'error' | 'success' | 'info' = 'info') => {
+    setAlertData({ msg, type });
+  };
 
   const handleRequest = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -17,7 +28,7 @@ export default function ResetPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username }),
     });
-    alert("Kód generálva! Nézd meg a Backend terminált.");
+    showAlert("Kód generálva! Nézd meg a Backend terminált.");
     setStep(2);
   };
 
@@ -30,15 +41,21 @@ export default function ResetPage() {
     });
 
     if (res.ok) {
-      alert("Sikeres csere! Most jelentkezz be.");
+      showAlert("Sikeres csere! Most jelentkezz be.");
       router.push("/login");
     } else {
-      alert("Hiba: Rossz kód!");
+      showAlert("Hiba: Rossz kód!");
     }
   };
 
   return (
     <div className="min-h-screen bg-black text-white flex items-center justify-center font-sans">
+      <Alert 
+        message={alertData.msg} 
+        type={alertData.type} 
+        onClose={() => setAlertData({ ...alertData, msg: null })} 
+      />
+
       <div className="max-w-md w-full p-8 bg-zinc-900 rounded-2xl border border-zinc-800">
         <h2 className="text-2xl font-bold mb-6 text-red-600">Jelszó Visszaállítás</h2>
 

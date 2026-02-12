@@ -3,11 +3,11 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import HelpDesk from '@/components/HelpDesk'; 
-
 import { Calendar, dateFnsLocalizer, View, Views } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { hu } from 'date-fns/locale';
 import "react-big-calendar/lib/css/react-big-calendar.css"; 
+import Alert from '@/components/Alert';
 
 const locales = { 'hu': hu };
 const localizer = dateFnsLocalizer({
@@ -45,8 +45,17 @@ export default function DashboardPage() {
   
   const [events, setEvents] = useState<EventItem[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
-
   const [activeTab, setActiveTab] = useState<'list' | 'calendar' | 'helpdesk'>('list');
+
+  // ALERT STATE ÉS FÜGGVÉNY
+  const [alertData, setAlertData] = useState<{ msg: string | null; type: 'error' | 'success' | 'info' }>({
+    msg: null,
+    type: 'info'
+  });
+
+  const showAlert = (msg: string, type: 'error' | 'success' | 'info' = 'info') => {
+    setAlertData({ msg, type });
+  };
 
   // HELPDESK STATEK
   interface SupportUser { session_id: string; needs_human: boolean; }
@@ -80,7 +89,6 @@ export default function DashboardPage() {
   const onNavigate = useCallback((newDate: Date) => setDate(newDate), [setDate]);
   const onView = useCallback((newView: View) => setView(newView), [setView]);
 
-  // ALAP BEÁLLÍTÁSOK
   useEffect(() => {
     const handleClick = () => setContextMenu(null);
     window.addEventListener("click", handleClick);
@@ -101,7 +109,6 @@ export default function DashboardPage() {
     }
   }, [router]);
 
-  // ESEMÉNYEK KEZELÉSE
   const fetchEvents = async () => {
     const token = localStorage.getItem("token");
     try {
@@ -111,7 +118,6 @@ export default function DashboardPage() {
       if(res.ok){
         const data: EventItem[] = await res.json();
         setEvents(data);
-
         const formattedEvents: CalendarEvent[] = data.map(event => ({
             id: event.id,
             title: event.title,
@@ -128,7 +134,10 @@ export default function DashboardPage() {
     e.preventDefault();
     const token = localStorage.getItem("token");
     
-    if (new Date(endDate) < new Date(startDate)) { alert("A befejezés nem lehet korábban!"); return; }
+    if (new Date(endDate) < new Date(startDate)) { 
+      showAlert("A befejezés nem lehet korábban!", "error"); 
+      return; 
+    }
 
     const payload = { 
       title: newTitle, 
@@ -154,17 +163,18 @@ export default function DashboardPage() {
 
     if (!res.ok) {
         const err = await res.json();
-        alert(`Hiba: ${err.detail}`);
+        showAlert(`Hiba: ${err.detail}`, 'error');
         return;
     }
     
+    showAlert(editId ? "Esemény frissítve!" : "Esemény hozzáadva!", "success");
     resetForm();
     fetchEvents();
   };
 
   const handleEditClick = (event: EventItem) => {
     if (event.owner && event.owner !== user) {
-      alert(`Ezt az eseményt ${event.owner} hozta létre, csak ő szerkesztheti.`);
+      showAlert(`Ezt az eseményt ${event.owner} hozta létre, csak ő szerkesztheti.`, "info");
       return;
     }
     setEditId(event.id);
@@ -174,17 +184,27 @@ export default function DashboardPage() {
     setNewDesc(event.description || "");
     setNewParticipants(event.participants || "");
   };
+
   const handleCalendarEdit = (calEvent: CalendarEvent) => {
     const originalEvent = events.find(e => e.id === calEvent.id);
     if (originalEvent) handleEditClick(originalEvent);
   };
+
   const resetForm = () => { setEditId(null); setNewTitle(""); setStartDate(""); setEndDate(""); setNewDesc(""); setNewParticipants(""); };
+
   const handleDelete = async (id: number) => {
     const token = localStorage.getItem("token");
     if(!confirm("Biztosan törölni szeretnéd?")) return;
     const res = await fetch(`http://localhost:8000/events/${id}`, { method: "DELETE", headers: { "Authorization": `Bearer ${token}` } });
-    if (!res.ok) { const err = await res.json(); alert(`Hiba: ${err.detail}`); } else { fetchEvents(); }
+    if (!res.ok) { 
+      const err = await res.json(); 
+      showAlert(`Hiba: ${err.detail}`, "error"); 
+    } else { 
+      showAlert("Esemény törölve!", "success");
+      fetchEvents(); 
+    }
   };
+
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     const token = localStorage.getItem("token"); 
@@ -194,9 +214,18 @@ export default function DashboardPage() {
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
         body: JSON.stringify({ username: createUsername, password: createPassword }),
       });
-      if (res.ok) { alert(`Sikeresen létrehozva: ${createUsername}`); setCreateUsername(""); setCreatePassword(""); setShowUserModal(false); } 
-      else { const err = await res.json(); alert(`Hiba: ${err.detail || "Jogosultsági hiba"}`); }
-    } catch (error) { alert("Hálózati hiba."); }
+      if (res.ok) { 
+        showAlert(`Sikeresen létrehozva: ${createUsername}`, "success"); 
+        setCreateUsername(""); 
+        setCreatePassword(""); 
+        setShowUserModal(false); 
+      } else { 
+        const err = await res.json(); 
+        showAlert(err.detail || "Jogosultsági hiba", "error"); 
+      }
+    } catch (error) { 
+      showAlert("Hálózati hiba.", "error"); 
+    }
   };
 
   // HELPDESK FUNKCIÓK
@@ -219,7 +248,6 @@ export default function DashboardPage() {
     if (res.ok) {
         const data = await res.json();
         setAdminChatMessages(data);
-        
         if (data.length > 0) {
           const lastMsg = data[data.length - 1];
           setIsChatResolved(!lastMsg.needs_human);
@@ -232,13 +260,11 @@ export default function DashboardPage() {
   const sendAdminReply = async () => {
     if (!selectedSupportUser || !adminReply) return;
     const token = localStorage.getItem("token");
-
     await fetch("http://localhost:8000/admin/reply", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
       body: JSON.stringify({ target_session_id: selectedSupportUser, message: adminReply })
     });
-
     setAdminReply("");
     fetchUserChatForAdmin(selectedSupportUser);
   };
@@ -246,13 +272,11 @@ export default function DashboardPage() {
   const resolveChat = async () => {
       if (!selectedSupportUser) return;
       const token = localStorage.getItem("token");
-
       await fetch("http://localhost:8000/admin/resolve", {
           method: "POST",
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
           body: JSON.stringify({ target_session_id: selectedSupportUser })
       });
-      
       fetchUserChatForAdmin(selectedSupportUser); 
       fetchSupportRequests(); 
   };
@@ -279,14 +303,38 @@ export default function DashboardPage() {
   }, [selectedSupportUser, activeTab]);
 
 
-  const startMfaSetup = async () => { const token = localStorage.getItem("token"); const res = await fetch("http://localhost:8000/mfa/setup", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, body: JSON.stringify({ username: user }) }); const data = await res.json(); setQrCode(data.qr_code); setShowMFAModal(true); };
-  const verifyMfa = async () => { const token = localStorage.getItem("token"); const res = await fetch("http://localhost:8000/mfa/verify", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, body: JSON.stringify({ username: user, code: verifyCode }) }); if (res.ok) { alert("Sikeres aktiválás!"); setIsMfaEnabled(true); setShowMFAModal(false); } else { alert("Hibás kód!"); } };
+  const startMfaSetup = async () => { 
+    const token = localStorage.getItem("token"); 
+    const res = await fetch("http://localhost:8000/mfa/setup", { 
+      method: "POST", 
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, 
+      body: JSON.stringify({ username: user }) 
+    }); 
+    const data = await res.json(); 
+    setQrCode(data.qr_code); 
+    setShowMFAModal(true); 
+  };
+
+  const verifyMfa = async () => { 
+    const token = localStorage.getItem("token"); 
+    const res = await fetch("http://localhost:8000/mfa/verify", { 
+      method: "POST", 
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, 
+      body: JSON.stringify({ username: user, code: verifyCode }) 
+    }); 
+    if (res.ok) { 
+      showAlert("Sikeres aktiválás!", "success"); 
+      setIsMfaEnabled(true); 
+      setShowMFAModal(false); 
+    } else { 
+      showAlert("Hibás kód!", "error"); 
+    } 
+  };
+
   const handleLogout = () => { localStorage.clear(); router.push("/login"); };
   const formatListDate = (d: string) => { try { return format(new Date(d), "yyyy. MM. dd. HH:mm", { locale: hu }); } catch (e) { return d; } };
   const EventWithContextMenu = ({ event }: { event: CalendarEvent }) => { return ( <div onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setContextMenu({ x: e.clientX, y: e.clientY, event: event }); }} className="h-full w-full"> {event.title} </div> ); };
 
-
-  // UI
   return (
     <div className="h-screen overflow-hidden bg-black text-gray-100 font-sans p-8 relative">
       <header className="flex justify-between items-center mb-8 border-b border-zinc-800 pb-6">
@@ -376,13 +424,10 @@ export default function DashboardPage() {
               />
             </div>
           ) : (
-             // HELPDESK UI
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl h-full flex overflow-hidden">
               <div className="w-1/3 border-r border-zinc-800 p-4 overflow-y-auto">
                 <h3 className="text-zinc-400 text-xs uppercase font-bold mb-4">Beszélgetések</h3>
-                
                 {supportUsers.length === 0 && <p className="text-zinc-500 text-sm">Nincs aktív beszélgetés.</p>}
-                
                 {supportUsers.map((u) => (
                   <button 
                     key={u.session_id} 
@@ -394,8 +439,6 @@ export default function DashboardPage() {
                     }`}
                 >
                     <span className="truncate text-sm font-medium">👤 {u.session_id}</span>
-                    
-                    {/* ÁLLAPOTJELZŐ (LEZÁRT/NYITOTT) */}
                     {u.needs_human ? (
                       <span className="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.6)]" title="Segítség kell!" />
                     ) : (
@@ -418,7 +461,6 @@ export default function DashboardPage() {
                         <button onClick={resolveChat} className="bg-green-700 hover:bg-green-600 text-white px-3 py-1 rounded text-xs font-bold">✅ Készre jelölés</button>
                       )}
                     </div>
-                    
                     <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-black/20">
                       {adminChatMessages.map((msg, idx) => (
                         <div key={idx} className={`flex ${msg.sender === 'admin' ? 'justify-end' : msg.sender === 'system' ? 'justify-center' : 'justify-start'}`}>
@@ -433,7 +475,6 @@ export default function DashboardPage() {
                         </div>
                       ))}
                     </div>
-
                     <div className="p-4 border-t border-zinc-800 flex gap-2 bg-zinc-900">
                       <input 
                         className={`flex-1 bg-black border rounded px-3 py-2 text-white focus:outline-none ${isChatResolved ? 'border-green-900 cursor-not-allowed text-zinc-500' : 'border-zinc-600 focus:border-blue-500'}`}
@@ -469,9 +510,9 @@ export default function DashboardPage() {
       {showMFAModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-zinc-900 p-8 rounded-2xl border border-zinc-700 max-w-sm w-full text-center">
-            <h3 className="text-2xl font-bold text-white mb-4">2FA Aktiválás</h3>
+            <h3 className="text-2xl font-bold text-white mb-4">2FA aktiválása</h3>
             <div className="bg-white p-4 rounded-xl inline-block mb-6">{qrCode && <img src={`data:image/png;base64,${qrCode}`} alt="QR Code" className="w-48 h-48" />}</div>
-            <input type="text" maxLength={6} value={verifyCode} onChange={(e) => setVerifyCode(e.target.value)} placeholder="kód" className="w-full p-3 bg-black border border-zinc-600 rounded text-center text-white text-xl mb-4" />
+            <input type="text" maxLength={6} value={verifyCode} onChange={(e) => setVerifyCode(e.target.value)} placeholder="6 - J E G Y Ű  K Ó D" className="w-full p-3 bg-black border border-zinc-600 rounded text-center text-white text-xl mb-4" />
             <button onClick={verifyMfa} className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded">Aktiválás</button>
             <button onClick={() => setShowMFAModal(false)} className="mt-2 text-zinc-500 text-sm hover:text-white">Bezárás</button>
           </div>
@@ -492,8 +533,14 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* CHAT GOMB */}
       <HelpDesk />
+
+      {/* ALERT */}
+      <Alert 
+        message={alertData.msg} 
+        type={alertData.type} 
+        onClose={() => setAlertData({ ...alertData, msg: null })} 
+      />
     </div>
   );
 }

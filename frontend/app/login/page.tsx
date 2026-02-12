@@ -3,20 +3,30 @@
 import { SyntheticEvent, useState } from 'react'; 
 import { useRouter } from 'next/navigation';
 import HelpDesk from '@/components/HelpDesk';
+import Alert from '@/components/Alert';
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showMFA, setShowMFA] = useState(false);
+  const [notification, setNotification] = useState<{ msg: string, type: 'error' | 'success' | 'info' } | null>(null);
+  
   const router = useRouter();
 
   async function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsLoading(true);
+    setNotification(null);
 
     const formData = new FormData(event.currentTarget);
     const username = formData.get('username') as string;
     const password = formData.get('password') as string;
     const mfaCode = formData.get('mfa_code') as string; 
+
+    if (!username || !password) {
+      setNotification({ msg: "Minden mező kitöltése kötelező!", type: 'error' });
+      setIsLoading(false);
+      return;
+    }
 
     try {
       const response = await fetch("http://localhost:8000/login", {
@@ -31,7 +41,7 @@ export default function LoginPage() {
 
       if (response.status === 403) {
         setShowMFA(true);
-        alert("Kérjük, adja meg a hitelesítő kódot!");
+        setNotification({ msg: "Kérjük, adja meg a hitelesítő kódot!", type: 'info' });
         setIsLoading(false);
         return;
       }
@@ -44,33 +54,52 @@ export default function LoginPage() {
       localStorage.setItem("username", username);
       localStorage.setItem("role", data.role);
       
-      router.push("/dashboard");
+      setNotification({ msg: "Sikeres bejelentkezés!", type: 'success' });
+      
+      setTimeout(() => {
+        router.push("/dashboard");
+      }, 500);
 
     } catch (error) {
-      alert("Hiba: Rossz felhasználónév, jelszó vagy kód!");
+      setNotification({ msg: "Hiba: Rossz felhasználónév, jelszó vagy kód!", type: 'error' });
     } finally {
       setIsLoading(false);
     }
   }
 
   return (
-    <div className="min-h-screen bg-black text-gray-100 flex items-center justify-center font-sans">
+    <div className="min-h-screen bg-black text-gray-100 flex items-center justify-center font-sans relative">
+      <Alert 
+        message={notification?.msg || null} 
+        type={notification?.type} 
+        onClose={() => setNotification(null)} 
+      />
+
       <div className="max-w-md w-full p-8 bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-800">
         <h2 className="text-3xl font-bold text-center mb-8 text-white tracking-tight">
           Eseménykezelő <span className="text-red-600">Login</span>
         </h2>
         
-        {/* MFA vizsgálat, vagy betöltés */}
         <form onSubmit={handleSubmit} className="space-y-6">
           {!showMFA && (
             <>
               <div>
                 <label className="block text-sm font-medium mb-2 text-zinc-400">Felhasználónév</label>
-                <input name="username" type="text" className="w-full p-3 bg-black border border-zinc-700 rounded text-white" placeholder="admin" required />
+                <input 
+                    name="username" 
+                    type="text" 
+                    className="w-full p-3 bg-black border border-zinc-700 rounded text-white focus:border-red-600 focus:outline-none transition-colors" 
+                    placeholder="admin" 
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2 text-zinc-400">Jelszó</label>
-                <input name="password" type="password" className="w-full p-3 bg-black border border-zinc-700 rounded text-white" placeholder="••••••••" required />
+                <input 
+                    name="password" 
+                    type="password" 
+                    className="w-full p-3 bg-black border border-zinc-700 rounded text-white focus:border-red-600 focus:outline-none transition-colors" 
+                    placeholder="••••••••" 
+                />
               </div>
             </>
           )}
@@ -82,19 +111,19 @@ export default function LoginPage() {
                 name="mfa_code" 
                 type="text" 
                 maxLength={6}
-                className="w-full p-3 bg-black border border-red-600 rounded text-white text-center text-2xl tracking-[0.5em]" 
+                className="w-full p-3 bg-black border border-red-600 rounded text-white text-center text-2xl tracking-[0.5em] focus:outline-none focus:ring-1 focus:ring-red-500" 
                 placeholder="123456" 
                 autoFocus
               />
-              <input type="hidden" name="username" value={(document.querySelector('[name=username]') as HTMLInputElement)?.value} />
-              <input type="hidden" name="password" value={(document.querySelector('[name=password]') as HTMLInputElement)?.value} />
+              <input type="hidden" name="username" value={(document.querySelector('input[name="username"]') as HTMLInputElement)?.value || ''} />
+              <input type="hidden" name="password" value={(document.querySelector('input[name="password"]') as HTMLInputElement)?.value || ''} />
             </div>
           )}
 
           <button 
             type="submit" 
             disabled={isLoading}
-            className="w-full py-3 bg-red-700 hover:bg-red-600 text-white font-bold rounded"
+            className="w-full py-3 bg-red-700 hover:bg-red-600 text-white font-bold rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoading ? "Betöltés..." : (showMFA ? "Kód Ellenőrzése" : "Belépés")}
           </button>
@@ -102,14 +131,13 @@ export default function LoginPage() {
 
         {!showMFA && (
           <div className="mt-6 text-center">
-            <button type="button" onClick={() => router.push("/login/reset")} className="text-sm text-zinc-500 hover:text-red-400 underline decoration-dotted">
+            <button type="button" onClick={() => router.push("/login/reset")} className="text-sm text-zinc-500 hover:text-red-400 underline decoration-dotted transition-colors">
               Elfelejtettem a jelszavam
             </button>
           </div>
         )}
       </div>
 
-      {/* CHAT GOMB */}
       <HelpDesk />
     </div>
   );
