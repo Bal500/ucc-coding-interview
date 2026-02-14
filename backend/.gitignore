@@ -3,3 +3,5 @@ __pycache__/
 venv/
 .env
 database.db
+key.pem
+cert.pem

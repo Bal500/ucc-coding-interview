@@ -1,4 +1,5 @@
 import uvicorn
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .config import ALLOWED_ORIGINS
@@ -7,8 +8,8 @@ from app import auth, events, chat
 
 # FastAPI
 app = FastAPI(
-    title="UCC Event App API",
-    description="Professzionális eseménykezelő és chat rendszer",
+    title="UCC Eseménykezelő Rendszer",
+    description="Professzionális eseménykezelő rendszer",
     version="1.0.0"
 )
 
@@ -45,9 +46,23 @@ async def root():
 
 
 if __name__ == "__main__":
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True
-    )
+    use_ssl = os.path.exists("key.pem") and os.path.exists("cert.pem")
+    
+    if use_ssl:
+        print("HTTPS mód aktív (TLS Encryption)")
+        uvicorn.run(
+            "app.main:app",
+            host="0.0.0.0",
+            port=8000,
+            reload=True,
+            ssl_keyfile="key.pem",
+            ssl_certfile="cert.pem"
+        )
+    else:
+        print("FIGYELEM: Nincs SSL tanúsítvány, HTTP módban futunk!")
+        uvicorn.run(
+            "app.main:app",
+            host="0.0.0.0",
+            port=8000,
+            reload=True
+        )

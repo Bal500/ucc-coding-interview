@@ -7,7 +7,7 @@ import { Calendar, dateFnsLocalizer, View, Views } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { hu } from 'date-fns/locale';
 import "react-big-calendar/lib/css/react-big-calendar.css"; 
-import Alert from '@/components/Alert';
+import { useAlert } from '@/components/AlertContext'; 
 import ConfirmModal from '@/components/ConfirmModal';
 
 const locales = { 'hu': hu };
@@ -41,6 +41,7 @@ interface ContextMenuState {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { showAlert } = useAlert();
   const [user, setUser] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   
@@ -50,16 +51,6 @@ export default function DashboardPage() {
 
   // CONFIRM MODAL STATE
   const [deleteId, setDeleteId] = useState<number | null>(null);
-
-  // ALERT STATE ÉS FÜGGVÉNY
-  const [alertData, setAlertData] = useState<{ msg: string | null; type: 'error' | 'success' | 'info' }>({
-    msg: null,
-    type: 'info'
-  });
-
-  const showAlert = (msg: string, type: 'error' | 'success' | 'info' = 'info') => {
-    setAlertData({ msg, type });
-  };
 
   // HELPDESK STATEK
   interface SupportUser { session_id: string; needs_human: boolean; }
@@ -116,7 +107,7 @@ export default function DashboardPage() {
   const fetchEvents = async () => {
     const token = localStorage.getItem("token");
     try {
-      const res = await fetch("http://localhost:8000/events", {
+      const res = await fetch("https://localhost:8000/events", {
         headers: { "Authorization": `Bearer ${token}` } 
       });
       if(res.ok){
@@ -151,11 +142,11 @@ export default function DashboardPage() {
       participants: newParticipants
     };
 
-    let url = "http://localhost:8000/events";
+    let url = "https://localhost:8000/events";
     let method = "POST";
 
     if (editId) {
-      url = `http://localhost:8000/events/${editId}`;
+      url = `https://localhost:8000/events/${editId}`;
       method = "PUT";
     }
 
@@ -205,7 +196,7 @@ export default function DashboardPage() {
   const confirmDelete = async () => {
     if (!deleteId) return;
     const token = localStorage.getItem("token");
-    const res = await fetch(`http://localhost:8000/events/${deleteId}`, { 
+    const res = await fetch(`https://localhost:8000/events/${deleteId}`, { 
       method: "DELETE", 
       headers: { "Authorization": `Bearer ${token}` } 
     });
@@ -224,7 +215,7 @@ export default function DashboardPage() {
     e.preventDefault();
     const token = localStorage.getItem("token"); 
     try {
-      const res = await fetch("http://localhost:8000/users", {
+      const res = await fetch("https://localhost:8000/users", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
         body: JSON.stringify({ username: createUsername, password: createPassword }),
@@ -246,7 +237,7 @@ export default function DashboardPage() {
   // HELPDESK FUNKCIÓK
   const fetchSupportRequests = async () => {
     const token = localStorage.getItem("token");
-    const res = await fetch("http://localhost:8000/admin/support-requests", {
+    const res = await fetch("https://localhost:8000/admin/support-requests", {
         headers: { "Authorization": `Bearer ${token}` }
     });
     if (res.ok) {
@@ -257,7 +248,7 @@ export default function DashboardPage() {
 
   const fetchUserChatForAdmin = async (targetSessionId: string) => {
     const token = localStorage.getItem("token");
-    const res = await fetch(`http://localhost:8000/admin/chat/${targetSessionId}`, {
+    const res = await fetch(`https://localhost:8000/admin/chat/${targetSessionId}`, {
       headers: { "Authorization": `Bearer ${token}` }
     });
     if (res.ok) {
@@ -275,7 +266,7 @@ export default function DashboardPage() {
   const sendAdminReply = async () => {
     if (!selectedSupportUser || !adminReply) return;
     const token = localStorage.getItem("token");
-    await fetch("http://localhost:8000/admin/reply", {
+    await fetch("https://localhost:8000/admin/reply", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
       body: JSON.stringify({ target_session_id: selectedSupportUser, message: adminReply })
@@ -287,7 +278,7 @@ export default function DashboardPage() {
   const resolveChat = async () => {
       if (!selectedSupportUser) return;
       const token = localStorage.getItem("token");
-      await fetch("http://localhost:8000/admin/resolve", {
+      await fetch("https://localhost:8000/admin/resolve", {
           method: "POST",
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
           body: JSON.stringify({ target_session_id: selectedSupportUser })
@@ -320,7 +311,7 @@ export default function DashboardPage() {
 
   const startMfaSetup = async () => { 
     const token = localStorage.getItem("token"); 
-    const res = await fetch("http://localhost:8000/mfa/setup", { 
+    const res = await fetch("https://localhost:8000/mfa/setup", { 
       method: "POST", 
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, 
       body: JSON.stringify({ username: user }) 
@@ -332,7 +323,7 @@ export default function DashboardPage() {
 
   const verifyMfa = async () => { 
     const token = localStorage.getItem("token"); 
-    const res = await fetch("http://localhost:8000/mfa/verify", { 
+    const res = await fetch("https://localhost:8000/mfa/verify", { 
       method: "POST", 
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, 
       body: JSON.stringify({ username: user, code: verifyCode }) 
@@ -549,12 +540,6 @@ export default function DashboardPage() {
       )}
 
       <HelpDesk />
-
-      <Alert 
-        message={alertData.msg} 
-        type={alertData.type} 
-        onClose={() => setAlertData({ ...alertData, msg: null })} 
-      />
 
       <ConfirmModal 
         isOpen={deleteId !== null}

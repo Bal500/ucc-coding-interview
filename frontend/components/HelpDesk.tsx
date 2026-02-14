@@ -32,7 +32,7 @@ export default function HelpDesk() {
     if (!sessionId) return;
     try {
       // Itt már nem kell Auth fejléc, csak a session_id az URL-ben
-      const res = await fetch(`http://localhost:8000/chat/history/${sessionId}`);
+      const res = await fetch(`https://localhost:8000/chat/history/${sessionId}`);
       if (res.ok) {
         const data = await res.json();
         setMessages(data);
@@ -61,7 +61,7 @@ export default function HelpDesk() {
     setInput("");
 
     // Új endpoint hívás (Auth nélkül, body-ban a session_id)
-    await fetch("http://localhost:8000/chat/send", {
+    await fetch("https://localhost:8000/chat/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ session_id: sessionId, message: txt })

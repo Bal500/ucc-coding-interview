@@ -9,11 +9,11 @@ if GOOGLE_API_KEY:
     try:
         client = genai.Client(api_key=GOOGLE_API_KEY)
         has_ai = True
-        print("✅ GOOGLE AI KLIENS AKTÍV")
+        print("GOOGLE AI KLIENS AKTÍV")
     except Exception as e:
-        print(f"❌ Hiba az AI inicializálásakor: {e}")
+        print(f"Hiba az AI inicializálásakor: {e}")
 else:
-    print("⚠️  FIGYELEM: NINCS GOOGLE_API_KEY BEÁLLÍTVA (AI kikapcsolva)")
+    print("FIGYELEM: NINCS GOOGLE_API_KEY BEÁLLÍTVA (AI kikapcsolva)")
 
 
 def get_ai_response(user_message: str) -> str:

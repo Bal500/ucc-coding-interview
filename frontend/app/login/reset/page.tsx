@@ -23,7 +23,7 @@ export default function ResetPage() {
 
   const handleRequest = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await fetch("http://localhost:8000/request-reset", {
+    const res = await fetch("https://localhost:8000/request-reset", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username }),
@@ -34,7 +34,7 @@ export default function ResetPage() {
 
   const handleConfirm = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await fetch("http://localhost:8000/confirm-reset", {
+    const res = await fetch("https://localhost:8000/confirm-reset", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token, new_password: newPassword }),

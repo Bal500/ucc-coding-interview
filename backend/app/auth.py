@@ -3,6 +3,7 @@ import pyotp
 import qrcode
 import io
 import base64
+from fastapi.security import OAuth2PasswordRequestForm
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from .database import get_session
@@ -15,10 +16,9 @@ from .schemas import (
     MFAVerifyRequest,
     UserCreate
 )
-from .dependencies import get_password_hash, verify_password, get_current_user
+from .dependencies import get_password_hash, verify_password, get_current_user, create_access_token
 
 router = APIRouter(prefix="", tags=["Authentication"])
-
 
 @router.post("/login")
 async def login(data: LoginRequest, session: Session = Depends(get_session)):
@@ -37,13 +37,29 @@ async def login(data: LoginRequest, session: Session = Depends(get_session)):
         if not totp.verify(data.mfa_code):
             raise HTTPException(status_code=401, detail="Hibás 2FA kód!")
     
+    access_token = create_access_token(data={"sub": user.username})
+    
     return {
-        "access_token": user.username,
+        "access_token": access_token,
         "token_type": "bearer",
         "mfa_enabled": user.mfa_enabled,
         "role": user.role
     }
 
+@router.post("/token")
+async def login_for_swagger(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    session: Session = Depends(get_session)
+):
+    """Külön endpoint a Swagger UI Authorize gombjához (Form Data-t vár)"""
+    user = session.exec(select(User).where(User.username == form_data.username)).first()
+    
+    if not user or not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Hibás felhasználónév vagy jelszó")
+    
+    access_token = create_access_token(data={"sub": user.username})
+    
+    return {"access_token": access_token, "token_type": "bearer"}
 
 @router.post("/mfa/setup")
 async def mfa_setup(req: MFAEnableRequest, session: Session = Depends(get_session)):
