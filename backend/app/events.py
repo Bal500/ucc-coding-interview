@@ -113,7 +113,7 @@ async def delete_event(
         log_security_event(f"JOGOSULTATLAN TORLESI KISERLET - ID: {event_id} - User: {current_user.username}")
         raise HTTPException(status_code=403, detail="Nincs jogosultságod")
     
-    log_security_event(f"ESEMÉNY TÖRÖLVE - ID: {event_id} - Cím: {event.title} - Törölte: {current_user.username}")
+    log_security_event(f"ESEMENY TOROLVE - ID: {event_id} - Cím: {event.title} - Torolte: {current_user.username}")
     
     session.delete(event)
     session.commit()
