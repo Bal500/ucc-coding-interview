@@ -110,7 +110,7 @@ export default function DashboardPage() {
   const fetchEvents = async () => {
     const token = localStorage.getItem("token");
     try {
-      const res = await fetch("http://localhost:8000/events", {
+      const res = await fetch("https://localhost:8000/events", {
         headers: { "Authorization": `Bearer ${token}` } 
       });
       if(res.ok){
@@ -146,11 +146,11 @@ export default function DashboardPage() {
       is_meeting: isMeeting
     };
 
-    let url = "http://localhost:8000/events";
+    let url = "https://localhost:8000/events";
     let method = "POST";
 
     if (editId) {
-      url = `http://localhost:8000/events/${editId}`;
+      url = `https://localhost:8000/events/${editId}`;
       method = "PUT";
     }
 
@@ -201,7 +201,7 @@ export default function DashboardPage() {
   const confirmDelete = async () => {
     if (!deleteId) return;
     const token = localStorage.getItem("token");
-    const res = await fetch(`http://localhost:8000/events/${deleteId}`, { 
+    const res = await fetch(`https://localhost:8000/events/${deleteId}`, { 
       method: "DELETE", 
       headers: { "Authorization": `Bearer ${token}` } 
     });
@@ -220,7 +220,7 @@ export default function DashboardPage() {
     e.preventDefault();
     const token = localStorage.getItem("token"); 
     try {
-      const res = await fetch("http://localhost:8000/users", {
+      const res = await fetch("https://localhost:8000/users", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
         body: JSON.stringify({ username: createUsername, password: createPassword }),
@@ -241,7 +241,7 @@ export default function DashboardPage() {
 
   const fetchSupportRequests = async () => {
     const token = localStorage.getItem("token");
-    const res = await fetch("http://localhost:8000/admin/support-requests", {
+    const res = await fetch("https://localhost:8000/admin/support-requests", {
         headers: { "Authorization": `Bearer ${token}` }
     });
     if (res.ok) {
@@ -252,7 +252,7 @@ export default function DashboardPage() {
 
   const fetchUserChatForAdmin = async (targetSessionId: string) => {
     const token = localStorage.getItem("token");
-    const res = await fetch(`http://localhost:8000/admin/chat/${targetSessionId}`, {
+    const res = await fetch(`https://localhost:8000/admin/chat/${targetSessionId}`, {
       headers: { "Authorization": `Bearer ${token}` }
     });
     if (res.ok) {
@@ -270,7 +270,7 @@ export default function DashboardPage() {
   const sendAdminReply = async () => {
     if (!selectedSupportUser || !adminReply) return;
     const token = localStorage.getItem("token");
-    await fetch("http://localhost:8000/admin/reply", {
+    await fetch("https://localhost:8000/admin/reply", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
       body: JSON.stringify({ target_session_id: selectedSupportUser, message: adminReply })
@@ -282,7 +282,7 @@ export default function DashboardPage() {
   const resolveChat = async () => {
       if (!selectedSupportUser) return;
       const token = localStorage.getItem("token");
-      await fetch("http://localhost:8000/admin/resolve", {
+      await fetch("https://localhost:8000/admin/resolve", {
           method: "POST",
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
           body: JSON.stringify({ target_session_id: selectedSupportUser })
@@ -314,7 +314,7 @@ export default function DashboardPage() {
 
   const startMfaSetup = async () => { 
     const token = localStorage.getItem("token"); 
-    const res = await fetch("http://localhost:8000/mfa/setup", { 
+    const res = await fetch("https://localhost:8000/mfa/setup", { 
       method: "POST", 
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, 
       body: JSON.stringify({ username: user }) 
@@ -326,7 +326,7 @@ export default function DashboardPage() {
 
   const verifyMfa = async () => { 
     const token = localStorage.getItem("token"); 
-    const res = await fetch("http://localhost:8000/mfa/verify", { 
+    const res = await fetch("https://localhost:8000/mfa/verify", { 
       method: "POST", 
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, 
       body: JSON.stringify({ username: user, code: verifyCode }) 
@@ -393,10 +393,10 @@ export default function DashboardPage() {
         </div>
         )}
 
-        {/* JOBB OSZLOP: NAVIGÁCIÓ + TARTALOM (Flex container) */}
+        {/* JOBB OSZLOP */}
         <div className={`${activeTab === 'helpdesk' ? 'col-span-3' : 'lg:col-span-2'} h-full flex flex-col gap-4 overflow-hidden`}>
           
-          {/* NAVIGÁCIÓS GOMBOK (Itt vannak most a jobb oldalon fent) */}
+          {/* NAVIGÁCIÓS GOMBOK */}
           <div className="bg-zinc-900 p-1 rounded-lg border border-zinc-800 flex gap-1 w-fit mx-auto lg:mx-0 shrink-0">
             <button onClick={() => setActiveTab('list')} className={`px-6 py-2 rounded-md text-sm font-bold transition-all ${activeTab === 'list' ? 'bg-zinc-800 text-white shadow-lg border border-zinc-700' : 'text-zinc-500 hover:text-zinc-300'}`}>📋 Lista Nézet</button>
             <button onClick={() => setActiveTab('calendar')} className={`px-6 py-2 rounded-md text-sm font-bold transition-all ${activeTab === 'calendar' ? 'bg-zinc-800 text-white shadow-lg border border-zinc-700' : 'text-zinc-500 hover:text-zinc-300'}`}>📅 Naptár Nézet</button>
@@ -407,7 +407,7 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* TARTALOM (Lista / Naptár / Helpdesk) - Kitölti a maradék helyet */}
+          {/* TARTALOM (Lista / Naptár / Helpdesk) */}
           <div className="flex-1 overflow-hidden relative">
             {activeTab === 'list' ? (
               <div className="space-y-4 overflow-y-auto h-full pr-2 pb-10">
@@ -428,19 +428,19 @@ export default function DashboardPage() {
                       
                       {event.description && (
                         <p className="text-zinc-400 text-sm mt-2 italic border-l-2 border-zinc-700 pl-2 break-words whitespace-pre-wrap max-w-full">
-                            {event.description}
+                          {event.description}
                         </p>
                       )}
 
                       {event.meeting_link && (
                         <div className="mt-3">
                             <a 
-                                href={event.meeting_link.startsWith('http') ? event.meeting_link : `https://${event.meeting_link}`}
-                                target="_blank" 
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-700 hover:bg-green-600 text-white text-xs font-bold rounded transition-colors"
+                              href={event.meeting_link.startsWith('http') ? event.meeting_link : `https://${event.meeting_link}`}
+                              target="_blank" 
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-700 hover:bg-green-600 text-white text-xs font-bold rounded transition-colors"
                             >
-                                🎥 Csatlakozás a Meetinghez
+                              🎥 Csatlakozás a Meetinghez
                             </a>
                         </div>
                       )}
