@@ -5,7 +5,7 @@ from sqlmodel import Session, select
 from .database import get_session
 from .models import Event, User
 from .dependencies import get_current_user, add_owner_to_participants
-from .utils import sanitize_input
+from .utils import sanitize_input, encrypt_text, decrypt_text
 
 router = APIRouter(prefix="/events", tags=["Events"])
 
@@ -21,11 +21,12 @@ async def create_event(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-    """Új esemény létrehozása"""
+    """Új esemény létrehozása titkosított leírással"""
     event.owner = current_user.username
-    
     event.title = sanitize(event.title)
-    event.description = sanitize(event.description)
+    
+    if event.description:
+        event.description = encrypt_text(sanitize(event.description))
     
     event.participants = add_owner_to_participants(event.owner, event.participants)
     
@@ -33,27 +34,30 @@ async def create_event(
     session.commit()
     session.refresh(event)
     
+    event.description = decrypt_text(event.description)
     return event
-
 
 @router.get("", response_model=List[Event])
 async def read_events(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-    """Összes releváns esemény lekérése"""
+    """Események lekérése feloldott leírással"""
     all_events = session.exec(select(Event)).all()
     my_events = []
     
     for event in all_events:
-        # tulajdonos
+        is_relevant = False
         if event.owner == current_user.username:
-            my_events.append(event)
-        # résztvevő
+            is_relevant = True
         elif event.participants:
             participant_list = [p.strip() for p in event.participants.split(",")]
             if current_user.username in participant_list:
-                my_events.append(event)
+                is_relevant = True
+        
+        if is_relevant:
+            event.description = decrypt_text(event.description)
+            my_events.append(event)
     
     return my_events
 

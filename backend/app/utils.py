@@ -4,7 +4,10 @@ from .database import engine
 from .models import User
 from .dependencies import get_password_hash
 from .config import ADMIN_USERNAME, ADMIN_PASSWORD
+from cryptography.fernet import Fernet
+from .config import ENCRYPTION_KEY
 
+cipher_suite = Fernet(ENCRYPTION_KEY.encode())
 
 def create_tables():
     """Adatbázis táblák létrehozása"""
@@ -28,6 +31,24 @@ def create_admin_user():
             print(f"Admin létrehozva: {ADMIN_USERNAME}")
         else:
             print("Admin már létezik")
+
+if not ENCRYPTION_KEY:
+    raise ValueError("Nincs ENCRYPTION_KEY beállítva a környezeti változók között!")
+
+def encrypt_text(text: str) -> str:
+    """Szöveg titkosítása"""
+    if not text:
+        return text
+    return cipher_suite.encrypt(text.encode()).decode()
+
+def decrypt_text(text: str) -> str:
+    """Titkosított szöveg dekódolása"""
+    if not text:
+        return text
+    try:
+        return cipher_suite.decrypt(text.encode()).decode()
+    except Exception:
+        return text
 
 def sanitize_input(text: str) -> str:
     if text:
