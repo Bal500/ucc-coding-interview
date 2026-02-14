@@ -1,10 +1,6 @@
-import secrets
-import pyotp
-import qrcode
-import io
-import base64
+import secrets, pyotp, qrcode, io, base64, logging
 from fastapi.security import OAuth2PasswordRequestForm
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlmodel import Session, select
 from .database import get_session
 from .models import User
@@ -17,11 +13,13 @@ from .schemas import (
     UserCreate
 )
 from .dependencies import get_password_hash, verify_password, get_current_user, create_access_token
+from .rate_limiter import limiter
 
 router = APIRouter(prefix="", tags=["Authentication"])
 
 @router.post("/login")
-async def login(data: LoginRequest, session: Session = Depends(get_session)):
+@limiter.limit("5/minute")
+async def login(data: LoginRequest, request: Request, session: Session = Depends(get_session)):
     """Bejelentkezés endpoint"""
     user = session.exec(select(User).where(User.username == data.username)).first()
     
@@ -131,9 +129,13 @@ async def create_user(
     
     return {"message": f"Felhasználó ({user_data.username}) létrehozva!"}
 
-
+logging.basicConfig(level=logging.INFO, filename="security.log")
+logger = logging.getLogger("security")
 @router.post("/request-reset")
 async def request_reset(request: ResetRequest, session: Session = Depends(get_session)):
+    user = session.exec(select(User).where(User.username == request.username)).first()
+    if user:
+        logger.info(f"Jelszó visszaállítás kérése: {user.username} - IP: {request.client.host}")
     """Jelszó visszaállítás kérése"""
     user = session.exec(select(User).where(User.username == request.username)).first()
     

@@ -5,6 +5,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import ALLOWED_ORIGINS
 from .utils import create_tables, create_admin_user
 from app import auth, events, chat
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from starlette.middleware.base import BaseHTTPMiddleware
+from .rate_limiter import limiter
+
 
 # FastAPI
 app = FastAPI(
@@ -12,6 +17,9 @@ app = FastAPI(
     description="Professzionális eseménykezelő rendszer",
     version="1.0.0"
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS middleware
 app.add_middleware(
@@ -21,6 +29,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        return response
+    
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Routerek
 app.include_router(auth.router)

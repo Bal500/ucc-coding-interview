@@ -1,3 +1,4 @@
+import bleach, logging
 from sqlmodel import Session, select, SQLModel
 from .database import engine
 from .models import User
@@ -27,3 +28,18 @@ def create_admin_user():
             print(f"Admin létrehozva: {ADMIN_USERNAME}")
         else:
             print("Admin már létezik")
+
+def sanitize_input(text: str) -> str:
+    if text:
+        return bleach.clean(text, tags=[], strip=True)
+    return text
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    filename="security.log"
+)
+security_logger = logging.getLogger("security")
+
+def log_security_event(message: str):
+    security_logger.info(message)

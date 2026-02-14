@@ -1,12 +1,19 @@
+import bleach
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from .database import get_session
 from .models import Event, User
 from .dependencies import get_current_user, add_owner_to_participants
+from .utils import sanitize_input
 
 router = APIRouter(prefix="/events", tags=["Events"])
 
+def sanitize(text: str):
+    """Bemeneti adatok tisztítása (XSS védelem)"""
+    if text:
+        return bleach.clean(text, tags=[], strip=True)
+    return text
 
 @router.post("", response_model=Event)
 async def create_event(
@@ -16,6 +23,10 @@ async def create_event(
 ):
     """Új esemény létrehozása"""
     event.owner = current_user.username
+    
+    event.title = sanitize(event.title)
+    event.description = sanitize(event.description)
+    
     event.participants = add_owner_to_participants(event.owner, event.participants)
     
     session.add(event)
