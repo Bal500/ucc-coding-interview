@@ -87,11 +87,22 @@ async def update_event(
     
     log_security_event(f"ESEMENY MODOSITVA - ID: {event_id} - Modosito: {current_user.username}")
     
-    # resfresh
-    db_event.title = event_update.title
+    db_event.title = sanitize(event_update.title)
     db_event.start_date = event_update.start_date
     db_event.end_date = event_update.end_date
-    db_event.description = event_update.description
+    
+    if event_update.is_meeting and not db_event.meeting_link:
+        db_event.meeting_link = sanitize(generate_meet_link())
+    elif not event_update.is_meeting:
+        db_event.meeting_link = None
+        
+    db_event.is_meeting = event_update.is_meeting
+
+    if event_update.description:
+        db_event.description = encrypt_text(sanitize(event_update.description))
+    else:
+        db_event.description = None
+
     db_event.participants = add_owner_to_participants(
         db_event.owner,
         event_update.participants
@@ -101,6 +112,9 @@ async def update_event(
     session.commit()
     session.refresh(db_event)
     
+    if db_event.description:
+        db_event.description = decrypt_text(db_event.description)
+        
     return db_event
 
 
