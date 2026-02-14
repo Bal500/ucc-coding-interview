@@ -6,9 +6,17 @@ interface ConfirmModalProps {
   message: string;
   onConfirm: () => void;
   onCancel: () => void;
+  confirmLabel?: string;
 }
 
-export default function ConfirmModal({ isOpen, title, message, onConfirm, onCancel }: ConfirmModalProps) {
+export default function ConfirmModal({ 
+  isOpen, 
+  title, 
+  message, 
+  onConfirm, 
+  onCancel, 
+  confirmLabel 
+}: ConfirmModalProps) {
   return (
     <AnimatePresence>
       {isOpen && (
@@ -35,7 +43,7 @@ export default function ConfirmModal({ isOpen, title, message, onConfirm, onCanc
                 onClick={onConfirm}
                 className="flex-1 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors font-medium"
               >
-                Törlés
+                {confirmLabel}
               </button>
             </div>
           </motion.div>

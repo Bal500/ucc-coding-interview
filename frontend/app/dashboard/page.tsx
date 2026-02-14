@@ -74,6 +74,9 @@ export default function DashboardPage() {
   const [isMfaEnabled, setIsMfaEnabled] = useState(false);
   const [createUsername, setCreateUsername] = useState("");
   const [createPassword, setCreatePassword] = useState("");
+  const [showConflictModal, setShowConflictModal] = useState(false);
+  const [conflictMessage, setConflictMessage] = useState("");
+  const [pendingPayload, setPendingPayload] = useState<any>(null);
 
   // SZERKESZTÉS
   const [editId, setEditId] = useState<number | null>(null);
@@ -128,47 +131,91 @@ export default function DashboardPage() {
     } catch (err) { console.error(err); }
   };
 
+  const executeSave = async (payload: any) => {
+    const token = localStorage.getItem("token");
+    let url = "https://localhost:8000/events";
+    let method = "POST";
+  
+    if (payload.id) {
+      url = `https://localhost:8000/events/${payload.id}`;
+      method = "PUT";
+    }
+  
+    try {
+      const res = await fetch(url, {
+        method: method,
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      });
+  
+      if (res.ok) {
+        showAlert(payload.id ? "Esemény frissítve!" : "Esemény létrehozva!", "success");
+        setEditId(null);
+        setNewTitle("");
+        setNewDesc("");
+        setIsMeeting(false);
+        setNewParticipants("");
+        fetchEvents();
+      } else {
+        showAlert("Hiba a mentés során", "error");
+      }
+    } catch (err) {
+      showAlert("Hálózati hiba", "error");
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const token = localStorage.getItem("token");
-    
-    if (new Date(endDate) < new Date(startDate)) { 
-      showAlert("A befejezés nem lehet korábban!", "error"); 
-      return; 
+  
+    if (new Date(endDate) < new Date(startDate)) {
+      showAlert("A befejezés nem lehet korábban!", "error");
+      return;
     }
-
-    const payload = { 
-      title: newTitle, 
-      start_date: startDate, 
-      end_date: endDate, 
+  
+    const payload = {
+      id: editId,
+      title: newTitle,
+      start_date: startDate,
+      end_date: endDate,
       description: newDesc,
       participants: newParticipants,
       is_meeting: isMeeting
     };
-
-    let url = "https://localhost:8000/events";
-    let method = "POST";
-
-    if (editId) {
-      url = `https://localhost:8000/events/${editId}`;
-      method = "PUT";
-    }
-
-    const res = await fetch(url, {
-        method: method,
+  
+    try {
+      const conflictRes = await fetch("https://localhost:8000/events/check-conflict", {
+        method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
         body: JSON.stringify(payload),
-    });
-
-    if (!res.ok) {
-        const err = await res.json();
-        showAlert(`Hiba: ${err.detail}`, 'error');
-        return;
+      });
+  
+      if (conflictRes.ok) {
+        const conflictData = await conflictRes.json();
+        if (conflictData.conflict) {
+          let readableDate = "Ismeretlen időpont";
+          
+          const rawDate = conflictData.start_date;
+          if (rawDate) {
+            const parsedDate = new Date(rawDate);
+            if (!isNaN(parsedDate.getTime())) {
+              readableDate = format(parsedDate, "yyyy. MM. dd. HH:mm", { locale: hu });
+            }
+          }
+      
+          setConflictMessage(`Ütközés: ${conflictData.title || "másik esemény"} (${readableDate}).\nSzeretnéd ennek ellenére menteni?`);
+          setPendingPayload(payload);
+          setShowConflictModal(true);
+          return;
+        }
+      }
+      
+      executeSave(payload);
+      
+    } catch (err) {
+      console.error("Conflict check failed", err);
+      executeSave(payload); 
     }
-    
-    showAlert(editId ? "Esemény frissítve!" : "Esemény hozzáadva!", "success");
-    resetForm();
-    fetchEvents();
   };
 
   const handleEditClick = (event: EventItem) => {
@@ -584,12 +631,30 @@ export default function DashboardPage() {
 
       <HelpDesk />
 
+      {/* Törlés modal */}
       <ConfirmModal 
         isOpen={deleteId !== null}
         title="Törlés megerősítése"
         message={`Biztosan törölni szeretnéd ezt az eseményt?\nEz a művelet nem vonható vissza.`}
+        confirmLabel="Törlés"
         onConfirm={confirmDelete}
         onCancel={() => setDeleteId(null)}
+      />
+
+      {/* Ütközés modal */}
+      <ConfirmModal
+        isOpen={showConflictModal}
+        title="Időpont ütközés"
+        message={conflictMessage}
+        confirmLabel="Mentés"
+        onConfirm={() => {
+          setShowConflictModal(false);
+          if (pendingPayload) executeSave(pendingPayload);
+        }}
+        onCancel={() => {
+          setShowConflictModal(false);
+          setPendingPayload(null);
+        }}
       />
     </div>
   );

@@ -140,3 +140,30 @@ async def delete_event(
     session.commit()
     
     return {"message": "Törölve"}
+
+@router.post("/check-conflict")
+async def check_conflict(
+    event: Event,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    """Ellenőrzi, hogy az új időpont ütközik-e meglévő eseménnyel"""
+    statement = select(Event).where(
+        Event.owner == current_user.username,
+        Event.start_date < event.end_date,
+        Event.end_date > event.start_date
+    )
+    
+    if event.id:
+        statement = statement.where(Event.id != event.id)
+        
+    conflicts = session.exec(statement).all()
+    
+    if conflicts:
+        return {
+            "conflict": True,
+            "title": conflicts[0].title,
+            "start_date": conflicts[0].start_date
+        }
+    
+    return {"conflict": False}
