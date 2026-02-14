@@ -7,31 +7,30 @@ export default function HelpDesk() {
   const [messages, setMessages] = useState<any[]>([]);
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  
-  // Session ID kezelés (Vendég vs. Bejelentkezett)
   const [sessionId, setSessionId] = useState<string>("");
 
+  // HANG STATEK-
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+
   useEffect(() => {
-    // 1. Megnézzük, van-e bejelentkezett user
     const storedUser = localStorage.getItem("username");
     if (storedUser) {
-        setSessionId(storedUser);
+      setSessionId(storedUser);
     } else {
-        // 2. Ha nincs, megnézzük van-e már elmentett Guest ID
-        let guestId = localStorage.getItem("guest_session_id");
-        if (!guestId) {
-            // 3. Ha nincs, generálunk egyet
-            guestId = "guest_" + Math.random().toString(36).substring(2, 9);
-            localStorage.setItem("guest_session_id", guestId);
-        }
-        setSessionId(guestId);
+      let guestId = localStorage.getItem("guest_session_id");
+      if (!guestId) {
+        guestId = "guest_" + Math.random().toString(36).substring(2, 9);
+        localStorage.setItem("guest_session_id", guestId);
+      }
+      setSessionId(guestId);
     }
   }, []);
 
   const fetchMessages = async () => {
     if (!sessionId) return;
     try {
-      // Itt már nem kell Auth fejléc, csak a session_id az URL-ben
       const res = await fetch(`https://localhost:8000/chat/history/${sessionId}`);
       if (res.ok) {
         const data = await res.json();
@@ -58,16 +57,89 @@ export default function HelpDesk() {
     const tempMsg = { sender: "user", message: input, timestamp: new Date().toISOString() };
     setMessages((prev) => [...prev, tempMsg]);
     const txt = input;
-    setInput("");
+    setInput(""); 
 
-    // Új endpoint hívás (Auth nélkül, body-ban a session_id)
-    await fetch("https://localhost:8000/chat/send", {
+    try {
+      await fetch("https://localhost:8000/chat/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ session_id: sessionId, message: txt })
-    });
-    
-    fetchMessages();
+      });
+      fetchMessages();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // HANG RÖGZÍTÉS ÉS KÜLDÉS
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorderRef.current = new MediaRecorder(stream);
+      chunksRef.current = [];
+
+      mediaRecorderRef.current.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+
+      mediaRecorderRef.current.onstop = async () => {
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        await sendAudio(blob);
+      };
+
+      mediaRecorderRef.current.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error("Mikrofon hiba:", err);
+      alert("Nem sikerült elérni a mikrofont. Engedélyezd a böngészőben!");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+    }
+  };
+
+  const sendAudio = async (audioBlob: Blob) => {
+    const formData = new FormData();
+    formData.append("file", audioBlob, "recording.webm");
+    formData.append("session_id", sessionId);
+
+    setMessages(prev => [...prev, { sender: 'user', message: '🎤 Hangüzenet küldése...', isTemp: true }]);
+
+    try {
+      const res = await fetch("https://localhost:8000/voice/process", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        
+        setMessages(prev => {
+          const newMsgs = prev.filter(m => !m.isTemp);
+          newMsgs.push({ sender: 'user', message: data.user_text });
+          newMsgs.push({ sender: 'bot', message: data.ai_text });
+          return newMsgs;
+        });
+
+        // TTS
+        if (data.audio_base64) {
+          try {
+            const audio = new Audio(`data:audio/mp3;base64,${data.audio_base64}`)
+            audio.play().catch(e => console.error("A lejásztás nem sikerült: ", e));
+          } catch (error) {
+            console.error("Audio hiba: ", error)
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Hiba a hangküldésnél:", err);
+      setMessages(prev => prev.filter(m => !m.isTemp));
+    }
   };
 
   return (
@@ -88,7 +160,7 @@ export default function HelpDesk() {
             </div>
 
             <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-black/50">
-              {messages.length === 0 && <p className="text-zinc-500 text-xs text-center">AI Asszisztens online.<br/>Írj be valamit!</p>}
+              {messages.length === 0 && <p className="text-zinc-500 text-xs text-center">AI Asszisztens online.<br/>Írj be valamit vagy használj hangüzenetet!</p>}
               
               {messages.map((msg, idx) => (
                 <div key={idx} className={`flex ${msg.sender === "user" ? "justify-end" : "justify-start"}`}>
@@ -106,15 +178,33 @@ export default function HelpDesk() {
               <div ref={messagesEndRef} />
             </div>
 
-            <div className="p-3 bg-zinc-800 border-t border-zinc-700 flex gap-2">
+            <div className="p-3 bg-zinc-800 border-t border-zinc-700 flex gap-2 items-center">
+              {/* INPUT MEZŐ */}
               <input
-                className="flex-1 bg-black border border-zinc-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-red-500"
+                className="flex-1 bg-black border border-zinc-600 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:border-red-500 h-7"
                 placeholder="Üzenet..."
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && sendMessage()}
               />
-              <button onClick={sendMessage} className="bg-red-700 hover:bg-red-600 text-white px-3 py-1 rounded text-sm">Küldés</button>
+              
+              {/* MIKROFON GOMB */}
+              <button
+                onClick={isRecording ? stopRecording : startRecording}
+                className={`p-2 rounded-full transition-all flex items-center justify-center w-8 h-8 ${
+                    isRecording 
+                      ? 'bg-red-600 text-white animate-pulse shadow-[0_0_10px_red]' 
+                      : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'
+                  }`}
+                title={isRecording ? "Felvétel leállítása" : "Hangüzenet küldése"}
+              >
+                {isRecording ? "⏹" : "🎤"}
+              </button>
+
+              {/* KÜLDÉS GOMB */}
+              <button onClick={sendMessage} className="bg-red-700 hover:bg-red-600 text-white px-3 py-1 rounded text-sm h-8">
+                Küldés
+              </button>
             </div>
           </motion.div>
         )}

@@ -1,14 +1,14 @@
-import uvicorn
-import os
+import uvicorn, os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .config import ALLOWED_ORIGINS
 from .utils import create_tables, create_admin_user
-from app import auth, events, chat
+from app import auth, events, chat, voice
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 from .rate_limiter import limiter
+from google import genai
 
 
 # FastAPI
@@ -44,6 +44,7 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.include_router(auth.router)
 app.include_router(events.router)
 app.include_router(chat.router)
+app.include_router(voice.router)
 
 
 @app.on_event("startup")
@@ -62,6 +63,9 @@ async def root():
         "docs": "/docs"
     }
 
+def list_models():
+    for i, m in zip(range(5), genai.list_models()):
+        print(f"Name: {m.name} Description: {m.description} support: {m.supported_generation_methods}")
 
 if __name__ == "__main__":
     use_ssl = os.path.exists("key.pem") and os.path.exists("cert.pem")
@@ -84,3 +88,4 @@ if __name__ == "__main__":
             port=8000,
             reload=True
         )
+    list_models()
