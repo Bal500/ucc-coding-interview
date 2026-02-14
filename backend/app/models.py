@@ -23,6 +23,8 @@ class Event(SQLModel, table=True):
     description: Optional[str] = None
     owner: Optional[str] = None
     participants: Optional[str] = None
+    is_meeting: bool = False
+    meeting_link: Optional[str] = None
 
 
 class ChatMessage(SQLModel, table=True):

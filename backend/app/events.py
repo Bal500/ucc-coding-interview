@@ -1,4 +1,4 @@
-import bleach
+import bleach, random, string
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
@@ -15,6 +15,10 @@ def sanitize(text: str):
         return bleach.clean(text, tags=[], strip=True)
     return text
 
+def generate_meet_link():
+    room_id = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
+    return f"https://meet.jit.si/UCC-Event-{room_id}"
+
 @router.post("", response_model=Event)
 async def create_event(
     event: Event,
@@ -24,6 +28,9 @@ async def create_event(
     """Új esemény létrehozása titkosított leírással"""
     event.owner = current_user.username
     event.title = sanitize(event.title)
+    
+    if event.is_meeting:
+        event.meeting_link = sanitize(generate_meet_link())
     
     if event.description:
         event.description = encrypt_text(sanitize(event.description))
