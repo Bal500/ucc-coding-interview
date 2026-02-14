@@ -487,7 +487,7 @@ export default function DashboardPage() {
                               rel="noreferrer"
                               className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-700 hover:bg-green-600 text-white text-xs font-bold rounded transition-colors"
                             >
-                              🎥 Csatlakozás a Meetinghez
+                              🎥 Csatlakozás a meetinghez
                             </a>
                         </div>
                       )}
