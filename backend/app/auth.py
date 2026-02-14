@@ -14,26 +14,34 @@ from .schemas import (
 )
 from .dependencies import get_password_hash, verify_password, get_current_user, create_access_token
 from .rate_limiter import limiter
+from .utils import log_security_event
 
 router = APIRouter(prefix="", tags=["Authentication"])
 
 @router.post("/login")
 @limiter.limit("5/minute")
 async def login(data: LoginRequest, request: Request, session: Session = Depends(get_session)):
-    """Bejelentkezés endpoint"""
+    """Bejelentkezés audit naplózással"""
     user = session.exec(select(User).where(User.username == data.username)).first()
     
     if not user or not verify_password(data.password, user.hashed_password):
+        # SIKERTELEN kísérlet naplózása IP címmel
+        log_security_event(f"SIKERTELEN BEJELENTKEZES - User: {data.username} - IP: {request.client.host}")
         raise HTTPException(status_code=401, detail="Hibás felhasználónév vagy jelszó")
     
-    # MFA ellenőrzés
+    # MFA bekapcsolva
     if user.mfa_enabled:
         if not data.mfa_code:
+            log_security_event(f"MFA SZÜKSÉGES - User: {user.username}")
             raise HTTPException(status_code=403, detail="MFA_REQUIRED")
         
-        totp = pyotp.TOTP(user.mfa_secret)
+        totp = pyotp.totp.TOTP(user.mfa_secret)
         if not totp.verify(data.mfa_code):
+            log_security_event(f"HIBÁS MFA KÓD - User: {user.username} - IP: {request.client.host}")
             raise HTTPException(status_code=401, detail="Hibás 2FA kód!")
+
+    # SIKERES belépés naplózása
+    log_security_event(f"SIKERES BEJELENTKEZES - User: {user.username}")
     
     access_token = create_access_token(data={"sub": user.username})
     

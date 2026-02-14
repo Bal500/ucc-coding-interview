@@ -5,3 +5,4 @@ venv/
 database.db
 key.pem
 cert.pem
+security.log

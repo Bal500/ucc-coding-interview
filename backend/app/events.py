@@ -5,7 +5,7 @@ from sqlmodel import Session, select
 from .database import get_session
 from .models import Event, User
 from .dependencies import get_current_user, add_owner_to_participants
-from .utils import sanitize_input, encrypt_text, decrypt_text
+from .utils import encrypt_text, decrypt_text, log_security_event
 
 router = APIRouter(prefix="/events", tags=["Events"])
 
@@ -78,6 +78,8 @@ async def update_event(
     if db_event.owner != current_user.username:
         raise HTTPException(status_code=403, detail="Nincs jogosultságod")
     
+    log_security_event(f"ESEMENY MODOSITVA - ID: {event_id} - Modosito: {current_user.username}")
+    
     # resfresh
     db_event.title = event_update.title
     db_event.start_date = event_update.start_date
@@ -108,7 +110,10 @@ async def delete_event(
         raise HTTPException(status_code=404, detail="Esemény nem található")
     
     if event.owner != current_user.username:
+        log_security_event(f"JOGOSULTATLAN TORLESI KISERLET - ID: {event_id} - User: {current_user.username}")
         raise HTTPException(status_code=403, detail="Nincs jogosultságod")
+    
+    log_security_event(f"ESEMÉNY TÖRÖLVE - ID: {event_id} - Cím: {event.title} - Törölte: {current_user.username}")
     
     session.delete(event)
     session.commit()

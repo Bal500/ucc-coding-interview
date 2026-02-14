@@ -5,6 +5,7 @@ from .models import ChatMessage, User
 from .schemas import ChatRequest
 from .dependencies import get_current_user
 from .ai_client import get_ai_response
+from .utils import log_security_event
 
 router = APIRouter(tags=["Chat & Helpdesk"])
 
@@ -39,6 +40,7 @@ async def send_chat_message(
     
     # Emberi támogatás kérése
     if "ember" in chat_req.message.lower() or "help" in chat_req.message.lower():
+        log_security_event(f"HELPDESK ATKAPCSOLÁS KERVE - Session: {chat_req.session_id}")
         user_msg.needs_human = True
         session.add(user_msg)
         session.commit()
