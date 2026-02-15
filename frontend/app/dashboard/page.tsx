@@ -1,21 +1,32 @@
 "use client";
 
+// --- IMPORTOK ---
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import HelpDesk from '@/components/HelpDesk'; 
+
+// Külső könyvtárak
 import { Calendar, dateFnsLocalizer, View, Views } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { hu } from 'date-fns/locale';
-import "react-big-calendar/lib/css/react-big-calendar.css"; 
-import { useAlert } from '@/components/AlertContext'; 
+import "react-big-calendar/lib/css/react-big-calendar.css";
+
+// Belső komponensek
+import HelpDesk from '@/components/HelpDesk';
+import { useAlert } from '@/components/AlertContext';
 import ConfirmModal from '@/components/ConfirmModal';
 import SearchableSelect from "../../components/SearchableSelect";
 
+// KONFIGURÁCIÓ
 const locales = { 'hu': hu };
 const localizer = dateFnsLocalizer({
-  format, parse, startOfWeek, getDay, locales,
+  format,
+  parse,
+  startOfWeek,
+  getDay,
+  locales,
 });
 
+// NTERFÉSZEK
 interface EventItem {
   id: number;
   title: string;
@@ -43,57 +54,67 @@ interface ContextMenuState {
   event: CalendarEvent;
 }
 
+interface SupportUser {
+  session_id: string;
+  needs_human: boolean;
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const { showAlert } = useAlert();
+
+  // STATE: USER & AUTH
   const [user, setUser] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
-  
+  const [allUsers, setAllUsers] = useState<string[]>([]);
+  const [viewedUser, setViewedUser] = useState<string | null>(null);
+
+  // STATE: ESEMÉNYEK & TABOK
   const [events, setEvents] = useState<EventItem[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [activeTab, setActiveTab] = useState<'list' | 'calendar' | 'helpdesk' | 'public'>('list');
   const [isPublic, setIsPublic] = useState(false);
   const [publicEvents, setPublicEvents] = useState<EventItem[]>([]);
-  const [allUsers, setAllUsers] = useState<string[]>([]);
-  const [viewedUser, setViewedUser] = useState<string | null>(null);
 
-  // CONFIRM MODAL STATE
-  const [deleteId, setDeleteId] = useState<number | null>(null);
+  // STATE: NAPTÁR UI
+  const [date, setDate] = useState(new Date());
+  const [view, setView] = useState<View>(Views.MONTH);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
-  // HELPDESK STATEK
-  interface SupportUser { session_id: string; needs_human: boolean; }
+  // STATE: SZERKESZTÉS
+  const [editId, setEditId] = useState<number | null>(null);
+  const [newTitle, setNewTitle] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [newDesc, setNewDesc] = useState("");
+  const [newParticipants, setNewParticipants] = useState("");
+  const [isMeeting, setIsMeeting] = useState(false);
+
+  // STATE: HELPDESK
   const [supportUsers, setSupportUsers] = useState<SupportUser[]>([]);
   const [selectedSupportUser, setSelectedSupportUser] = useState<string | null>(null);
   const [adminChatMessages, setAdminChatMessages] = useState<any[]>([]);
   const [adminReply, setAdminReply] = useState("");
   const [isChatResolved, setIsChatResolved] = useState(false);
 
-  const [date, setDate] = useState(new Date());
-  const [view, setView] = useState<View>(Views.MONTH);
-  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
-  
-  // MODALOK
+  // STATE: MODALOK & CONFIRMS
+  const [deleteId, setDeleteId] = useState<number | null>(null);
   const [showMFAModal, setShowMFAModal] = useState(false);
   const [showUserModal, setShowUserModal] = useState(false);
   const [qrCode, setQrCode] = useState("");
   const [verifyCode, setVerifyCode] = useState("");
   const [isMfaEnabled, setIsMfaEnabled] = useState(false);
+  
   const [createUsername, setCreateUsername] = useState("");
   const [createPassword, setCreatePassword] = useState("");
   const [createRole, setCreateRole] = useState("user");
+
   const [showConflictModal, setShowConflictModal] = useState(false);
   const [conflictMessage, setConflictMessage] = useState("");
   const [pendingPayload, setPendingPayload] = useState<any>(null);
 
-  // SZERKESZTÉS
-  const [editId, setEditId] = useState<number | null>(null);
-  const [newTitle, setNewTitle] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [newDesc, setNewDesc] = useState("");
-  const [newParticipants, setNewParticipants] = useState(""); 
-  const [isMeeting, setIsMeeting] = useState(false);
 
+  // ESEMÉNYKEZELŐK
   const onNavigate = useCallback((newDate: Date) => setDate(newDate), [setDate]);
   const onView = useCallback((newView: View) => setView(newView), [setView]);
 
@@ -118,29 +139,30 @@ export default function DashboardPage() {
     }
   }, [router]);
 
+
+  // API HÍVÁSOK: ESEMÉNYEK
   const fetchEvents = async () => {
     const token = localStorage.getItem("token");
-    
     const baseUrl = "https://localhost:8000";
-    const url = viewedUser 
+    const url = viewedUser
       ? `${baseUrl}/events/user/${viewedUser}`
       : `${baseUrl}/events`;
 
     try {
       const res = await fetch(url, {
-        headers: { "Authorization": `Bearer ${token}` } 
+        headers: { "Authorization": `Bearer ${token}` }
       });
-      
-      if(res.ok){
+
+      if (res.ok) {
         const data: EventItem[] = await res.json();
         setEvents(data);
-        
+
         const formattedEvents: CalendarEvent[] = data.map(event => ({
           id: event.id,
           title: event.title,
           start: new Date(event.start_date),
           end: new Date(event.end_date),
-          resource: event 
+          resource: event
         }));
         setCalendarEvents(formattedEvents);
       } else {
@@ -178,15 +200,17 @@ export default function DashboardPage() {
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    
+
     if (activeTab === 'public') {
       fetchPublicEvents();
       interval = setInterval(fetchPublicEvents, 1000);
     }
-    
+
     return () => clearInterval(interval);
   }, [activeTab]);
 
+
+  // API HÍVÁSOK: JOIN / LEAVE
   const joinEvent = async (id: number) => {
     const token = localStorage.getItem("token");
     const res = await fetch(`https://localhost:8000/events/${id}/join`, {
@@ -209,7 +233,7 @@ export default function DashboardPage() {
       headers: { "Authorization": `Bearer ${token}` }
     });
     const data = await res.json();
-    
+
     if (res.ok) {
       showAlert(data.message, "info");
       fetchEvents();
@@ -219,23 +243,25 @@ export default function DashboardPage() {
     }
   };
 
+
+  // ŰRLAP KEZELÉS & MENTÉS
   const executeSave = async (payload: any) => {
     const token = localStorage.getItem("token");
     let url = "https://localhost:8000/events";
     let method = "POST";
-  
+
     if (payload.id) {
       url = `https://localhost:8000/events/${payload.id}`;
       method = "PUT";
     }
-  
+
     try {
       const res = await fetch(url, {
         method: method,
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
         body: JSON.stringify(payload),
       });
-  
+
       if (res.ok) {
         showAlert(payload.id ? "Esemény frissítve!" : "Esemény létrehozva!", "success");
         setEditId(null);
@@ -255,12 +281,12 @@ export default function DashboardPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const token = localStorage.getItem("token");
-  
+
     if (new Date(endDate) < new Date(startDate)) {
       showAlert("A befejezés nem lehet korábban!", "error");
       return;
     }
-  
+
     const payload = {
       id: editId,
       title: newTitle,
@@ -271,19 +297,19 @@ export default function DashboardPage() {
       is_meeting: isMeeting,
       is_public: isPublic
     };
-  
+
     try {
       const conflictRes = await fetch("https://localhost:8000/events/check-conflict", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
         body: JSON.stringify(payload),
       });
-  
+
       if (conflictRes.ok) {
         const conflictData = await conflictRes.json();
         if (conflictData.conflict) {
           let readableDate = "Ismeretlen időpont";
-          
+
           const rawDate = conflictData.start_date;
           if (rawDate) {
             const parsedDate = new Date(rawDate);
@@ -291,22 +317,24 @@ export default function DashboardPage() {
               readableDate = format(parsedDate, "yyyy. MM. dd. HH:mm", { locale: hu });
             }
           }
-      
+
           setConflictMessage(`Ütközés: ${conflictData.title || "másik esemény"} (${readableDate}).\nSzeretnéd ennek ellenére menteni?`);
           setPendingPayload(payload);
           setShowConflictModal(true);
           return;
         }
       }
-      
+
       executeSave(payload);
-      
+
     } catch (err) {
       console.error("Conflict check failed", err);
-      executeSave(payload); 
+      executeSave(payload);
     }
   };
 
+
+  // SZERKESZTÉS & TÖRLÉS LOGIKA
   const handleEditClick = (event: EventItem) => {
     if (event.owner && event.owner !== user) {
       showAlert(`Ezt az eseményt ${event.owner} hozta létre, csak ő szerkesztheti.`, "info");
@@ -323,14 +351,21 @@ export default function DashboardPage() {
   };
 
   const handleCalendarEdit = (calEvent: CalendarEvent) => {
-    if (viewedUser) return; 
+    if (viewedUser) return;
 
     const originalEvent = events.find(e => e.id === calEvent.id);
     if (originalEvent) handleEditClick(originalEvent);
   };
 
-  const resetForm = () => { 
-    setEditId(null); setNewTitle(""); setStartDate(""); setEndDate(""); setNewDesc(""); setNewParticipants(""); setIsMeeting(false); setIsPublic(false);
+  const resetForm = () => {
+    setEditId(null);
+    setNewTitle("");
+    setStartDate("");
+    setEndDate("");
+    setNewDesc("");
+    setNewParticipants("");
+    setIsMeeting(false);
+    setIsPublic(false);
   };
 
   const askDelete = (id: number) => {
@@ -340,45 +375,79 @@ export default function DashboardPage() {
   const confirmDelete = async () => {
     if (!deleteId) return;
     const token = localStorage.getItem("token");
-    const res = await fetch(`https://localhost:8000/events/${deleteId}`, { 
-      method: "DELETE", 
-      headers: { "Authorization": `Bearer ${token}` } 
+    const res = await fetch(`https://localhost:8000/events/${deleteId}`, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${token}` }
     });
 
-    if (!res.ok) { 
-      const err = await res.json(); 
-      showAlert(`Hiba: ${err.detail}`, "error"); 
-    } else { 
+    if (!res.ok) {
+      const err = await res.json();
+      showAlert(`Hiba: ${err.detail}`, "error");
+    } else {
       showAlert("Esemény törölve!", "success");
-      fetchEvents(); 
+      fetchEvents();
     }
     setDeleteId(null);
   };
 
+
+  // USER & AUTH ADMINISZTRÁCIÓ
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    const token = localStorage.getItem("token"); 
+    const token = localStorage.getItem("token");
     try {
       const res = await fetch("https://localhost:8000/users", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
         body: JSON.stringify({ username: createUsername, password: createPassword, role: createRole }),
       });
-      if (res.ok) { 
-        showAlert(`Sikeresen létrehozva: ${createUsername}`, "success"); 
-        setCreateUsername(""); 
-        setCreatePassword(""); 
+      if (res.ok) {
+        showAlert(`Sikeresen létrehozva: ${createUsername}`, "success");
+        setCreateUsername("");
+        setCreatePassword("");
         setCreateRole("user")
-        setShowUserModal(false); 
-      } else { 
-        const err = await res.json(); 
-        showAlert(err.detail || "Jogosultsági hiba", "error"); 
+        setShowUserModal(false);
+      } else {
+        const err = await res.json();
+        showAlert(err.detail || "Jogosultsági hiba", "error");
       }
-    } catch (error) { 
-      showAlert("Hálózati hiba.", "error"); 
+    } catch (error) {
+      showAlert("Hálózati hiba.", "error");
     }
   };
 
+  const startMfaSetup = async () => {
+    const token = localStorage.getItem("token");
+    const res = await fetch("https://localhost:8000/mfa/setup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+      body: JSON.stringify({ username: user })
+    });
+    const data = await res.json();
+    setQrCode(data.qr_code);
+    setShowMFAModal(true);
+  };
+
+  const verifyMfa = async () => {
+    const token = localStorage.getItem("token");
+    const res = await fetch("https://localhost:8000/mfa/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+      body: JSON.stringify({ username: user, code: verifyCode })
+    });
+    if (res.ok) {
+      showAlert("Sikeres aktiválás!", "success");
+      setIsMfaEnabled(true);
+      setShowMFAModal(false);
+    } else {
+      showAlert("Hibás kód!", "error");
+    }
+  };
+
+  const handleLogout = () => { localStorage.clear(); router.push("/login"); };
+
+
+  // HELPDESK LOGIKA
   const fetchSupportRequests = async () => {
     const token = localStorage.getItem("token");
     const res = await fetch("https://localhost:8000/admin/support-requests", {
@@ -420,15 +489,15 @@ export default function DashboardPage() {
   };
 
   const resolveChat = async () => {
-      if (!selectedSupportUser) return;
-      const token = localStorage.getItem("token");
-      await fetch("https://localhost:8000/admin/resolve", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-          body: JSON.stringify({ target_session_id: selectedSupportUser })
-      });
-      fetchUserChatForAdmin(selectedSupportUser); 
-      fetchSupportRequests(); 
+    if (!selectedSupportUser) return;
+    const token = localStorage.getItem("token");
+    await fetch("https://localhost:8000/admin/resolve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+      body: JSON.stringify({ target_session_id: selectedSupportUser })
+    });
+    fetchUserChatForAdmin(selectedSupportUser);
+    fetchSupportRequests();
   };
 
   useEffect(() => {
@@ -452,121 +521,174 @@ export default function DashboardPage() {
   }, [selectedSupportUser, activeTab]);
 
 
-  const startMfaSetup = async () => { 
-    const token = localStorage.getItem("token"); 
-    const res = await fetch("https://localhost:8000/mfa/setup", { 
-      method: "POST", 
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, 
-      body: JSON.stringify({ username: user }) 
-    }); 
-    const data = await res.json(); 
-    setQrCode(data.qr_code); 
-    setShowMFAModal(true); 
-  };
-
-  const verifyMfa = async () => { 
-    const token = localStorage.getItem("token"); 
-    const res = await fetch("https://localhost:8000/mfa/verify", { 
-      method: "POST", 
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, 
-      body: JSON.stringify({ username: user, code: verifyCode }) 
-    }); 
-    if (res.ok) { 
-      showAlert("Sikeres aktiválás!", "success"); 
-      setIsMfaEnabled(true); 
-      setShowMFAModal(false); 
-    } else { 
-      showAlert("Hibás kód!", "error"); 
-    } 
-  };
-
-  const handleLogout = () => { localStorage.clear(); router.push("/login"); };
+  // UTILS
   const formatListDate = (d: string) => { try { return format(new Date(d), "yyyy. MM. dd. HH:mm", { locale: hu }); } catch (e) { return d; } };
-  const EventWithContextMenu = ({ event }: { event: CalendarEvent }) => { return ( <div onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setContextMenu({ x: e.clientX, y: e.clientY, event: event }); }} className="h-full w-full"> {event.title} </div> ); };
 
+
+  // RENDER
   return (
     <div className="h-screen overflow-hidden bg-black text-gray-100 font-sans p-8 relative">
+
+      {/* HEADER */}
       <header className="flex justify-between items-center mb-6 border-b border-zinc-800 pb-4 h-[80px]">
-        <div><h1 className="text-3xl font-bold text-white tracking-tight">Esemény<span className="text-red-600">Kezelő</span></h1><p className="text-zinc-500 text-sm mt-1">Belépve: <span className="text-white font-medium">{user || "Betöltés..."}</span> ({userRole})</p></div>
+        <div>
+          <h1 className="text-3xl font-bold text-white tracking-tight">Esemény<span className="text-red-600">Kezelő</span></h1>
+          <p className="text-zinc-500 text-sm mt-1">Belépve: <span className="text-white font-medium">{user || "Betöltés..."}</span> ({userRole})</p>
+        </div>
         <div className="flex gap-3">
-          {userRole === "admin" && (<button onClick={() => setShowUserModal(true)} className="px-4 py-2 bg-zinc-800 border border-zinc-600 text-zinc-300 rounded hover:bg-zinc-700 transition-colors text-sm">👤 Új User</button>)}
-          <button onClick={startMfaSetup} className="px-4 py-2 bg-blue-900/30 border border-blue-600 text-blue-400 rounded hover:bg-blue-900/50 transition-colors text-sm flex items-center gap-2">🛡️ 2FA</button>
-          <button onClick={handleLogout} className="px-4 py-2 bg-zinc-900 border border-zinc-700 rounded hover:border-red-600 text-sm text-white transition-colors">Kilépés</button>
+          {userRole === "admin" && (
+            <button
+              onClick={() => setShowUserModal(true)}
+              className="px-4 py-2 bg-zinc-800 border border-zinc-600 text-zinc-300 rounded hover:bg-zinc-700 transition-colors text-sm"
+            >
+              👤 Új User
+            </button>
+          )}
+          <button
+            onClick={startMfaSetup}
+            className="px-4 py-2 bg-blue-900/30 border border-blue-600 text-blue-400 rounded hover:bg-blue-900/50 transition-colors text-sm flex items-center gap-2"
+          >
+            🛡️ 2FA
+          </button>
+          <button
+            onClick={handleLogout}
+            className="px-4 py-2 bg-zinc-900 border border-zinc-700 rounded hover:border-red-600 text-sm text-white transition-colors"
+          >
+            Kilépés
+          </button>
         </div>
       </header>
+
+
       {/* FŐ CONTAINER */}
       <main className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-[calc(100vh-140px)]">
+
         {/* BAL OSZLOP: ŰRLAP és NAPTÁR VÁLASZTÓ */}
         {activeTab !== 'helpdesk' && (
           <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800 h-fit max-h-full overflow-y-auto shadow-xl transition-all">
-          {/* NAPTÁR VÁLASZTÓ */}
-          <div className="mb-6 pb-6 border-b border-zinc-800">
-                <SearchableSelect
-                  label="Naptár megtekintése"
-                  placeholder="Keresés felhasználóra..."
-                  options={allUsers.filter(u => u !== user)}
-                  value={viewedUser}
-                  onChange={(val) => setViewedUser(val)}
-                />                
-              </div>
-          {/* SAJÁT NAPTÁR vs MÁS NAPTÁRA */}
-          {!viewedUser ? (
-            <>
-              {/* ŰRLAP (csak a sajátnál) */}
-              <h2 className="text-xl font-bold mb-4 text-white flex justify-between items-center">
-                {editId ? "Szerkesztés" : "Új Esemény"} 
-                {editId && <span className="text-xs bg-yellow-600/20 text-yellow-500 px-2 py-1 rounded border border-yellow-600/40">Szerkesztés</span>}
-              </h2>
-              
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div><label className="text-xs text-zinc-400">Megnevezés</label><input value={newTitle} onChange={e => setNewTitle(e.target.value)} className="w-full p-2 bg-black border border-zinc-700 rounded text-white mt-1" required /></div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div><label className="text-xs text-zinc-400">Kezdete</label><input type="datetime-local" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full p-2 bg-black border border-zinc-700 rounded text-white mt-1 [color-scheme:dark]" required /></div>
-                  <div><label className="text-xs text-zinc-400">Vége</label><input type="datetime-local" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full p-2 bg-black border border-zinc-700 rounded text-white mt-1 [color-scheme:dark]" required /></div>
-                </div>
-                <div>
-                  <label className="text-xs text-zinc-400 flex justify-between">Résztvevők <span className="text-zinc-600">(vesszővel elválasztva)</span></label>
-                  <input value={newParticipants} onChange={e => setNewParticipants(e.target.value)} className="w-full p-2 bg-black border border-zinc-700 rounded text-white mt-1" placeholder="Pl. Balázs" />
-                </div>
-                
-                <div className="flex flex-col gap-2 pt-2">
-                  <div className="flex items-center gap-2">
-                    <input 
-                      type="checkbox" 
-                      id="isMeeting" 
-                      checked={isMeeting} 
-                      onChange={(e) => setIsMeeting(e.target.checked)}
-                      className="w-4 h-4 accent-blue-600 rounded cursor-pointer"
-                    />
-                    <label htmlFor="isMeeting" className="text-sm text-zinc-300 cursor-pointer select-none">Meeting</label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input 
-                      type="checkbox" 
-                      id="isPublic" 
-                      checked={isPublic} 
-                      onChange={(e) => setIsPublic(e.target.checked)}
-                      className="w-4 h-4 accent-green-600 rounded cursor-pointer"
-                    />
-                    <label htmlFor="isPublic" className="text-sm text-zinc-300 cursor-pointer select-none">Publikus esemény</label>
-                  </div>
-                </div>
 
-                <div><label className="text-xs text-zinc-400">Leírás</label><textarea value={newDesc} onChange={e => setNewDesc(e.target.value)} className="w-full p-2 bg-black border border-zinc-700 rounded text-white h-24 mt-1" /></div>
-                
-                <div className="flex gap-2 pb-2 pt-2">
-                  <button type="submit" className={`flex-1 py-2 font-bold rounded text-white transition-colors ${editId ? 'bg-yellow-600 hover:bg-yellow-500' : 'bg-red-700 hover:bg-red-600'}`}>{editId ? "Mentés" : "Hozzáadás"}</button>
-                  {editId && (<button type="button" onClick={resetForm} className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded transition-colors">Mégse</button>)}
-                </div>
-              </form>
-            </>
-          ) : (
-            /* MÁS NAPTÁRÁT NÉZZÜK (információs blokk) */
-            <div className="flex flex-col items-center justify-center py-10 text-center animate-in fade-in duration-300">
+            {/* NAPTÁR VÁLASZTÓ */}
+            <div className="mb-6 pb-6 border-b border-zinc-800">
+              <SearchableSelect
+                label="Naptár megtekintése"
+                placeholder="Keresés felhasználóra..."
+                options={allUsers.filter(u => u !== user)}
+                value={viewedUser}
+                onChange={(val) => setViewedUser(val)}
+              />
+            </div>
+
+            {/* SAJÁT NAPTÁR vs MÁS NAPTÁRA */}
+            {!viewedUser ? (
+              <>
+                {/* ŰRLAP (csak a sajátnál) */}
+                <h2 className="text-xl font-bold mb-4 text-white flex justify-between items-center">
+                  {editId ? "Szerkesztés" : "Új Esemény"}
+                  {editId && <span className="text-xs bg-yellow-600/20 text-yellow-500 px-2 py-1 rounded border border-yellow-600/40">Szerkesztés</span>}
+                </h2>
+
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div>
+                    <label className="text-xs text-zinc-400">Megnevezés</label>
+                    <input
+                      value={newTitle}
+                      onChange={e => setNewTitle(e.target.value)}
+                      className="w-full p-2 bg-black border border-zinc-700 rounded text-white mt-1"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-zinc-400">Kezdete</label>
+                      <input
+                        type="datetime-local"
+                        value={startDate}
+                        onChange={e => setStartDate(e.target.value)}
+                        className="w-full p-2 bg-black border border-zinc-700 rounded text-white mt-1 [color-scheme:dark]"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-zinc-400">Vége</label>
+                      <input
+                        type="datetime-local"
+                        value={endDate}
+                        onChange={e => setEndDate(e.target.value)}
+                        className="w-full p-2 bg-black border border-zinc-700 rounded text-white mt-1 [color-scheme:dark]"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-zinc-400 flex justify-between">Résztvevők <span className="text-zinc-600">(vesszővel elválasztva)</span></label>
+                    <input
+                      value={newParticipants}
+                      onChange={e => setNewParticipants(e.target.value)}
+                      className="w-full p-2 bg-black border border-zinc-700 rounded text-white mt-1"
+                      placeholder="Pl. Balázs"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-2 pt-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="isMeeting"
+                        checked={isMeeting}
+                        onChange={(e) => setIsMeeting(e.target.checked)}
+                        className="w-4 h-4 accent-blue-600 rounded cursor-pointer"
+                      />
+                      <label htmlFor="isMeeting" className="text-sm text-zinc-300 cursor-pointer select-none">Meeting</label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="isPublic"
+                        checked={isPublic}
+                        onChange={(e) => setIsPublic(e.target.checked)}
+                        className="w-4 h-4 accent-green-600 rounded cursor-pointer"
+                      />
+                      <label htmlFor="isPublic" className="text-sm text-zinc-300 cursor-pointer select-none">Publikus esemény</label>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-zinc-400">Leírás</label>
+                    <textarea
+                      value={newDesc}
+                      onChange={e => setNewDesc(e.target.value)}
+                      className="w-full p-2 bg-black border border-zinc-700 rounded text-white h-24 mt-1"
+                    />
+                  </div>
+
+                  <div className="flex gap-2 pb-2 pt-2">
+                    <button
+                      type="submit"
+                      className={`flex-1 py-2 font-bold rounded text-white transition-colors ${editId ? 'bg-yellow-600 hover:bg-yellow-500' : 'bg-red-700 hover:bg-red-600'}`}
+                    >
+                      {editId ? "Mentés" : "Hozzáadás"}
+                    </button>
+                    {editId && (
+                      <button
+                        type="button"
+                        onClick={resetForm}
+                        className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded transition-colors"
+                      >
+                        Mégse
+                      </button>
+                    )}
+                  </div>
+                </form>
+              </>
+            ) : (
+              /* MÁS NAPTÁRÁT NÉZZÜK (információs blokk) */
+              <div className="flex flex-col items-center justify-center py-10 text-center animate-in fade-in duration-300">
                 <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center mb-4 text-3xl">📅</div>
                 <h3 className="text-lg font-bold text-white mb-1">{viewedUser}</h3>
                 <p className="text-zinc-500 text-sm mb-6">naptárát látod jelenleg.</p>
-                
+
                 <div className="bg-zinc-800/50 p-4 rounded-lg text-left w-full mb-6 border border-zinc-700/50">
                   <p className="text-xs text-zinc-400 mb-2 uppercase font-bold tracking-wider">Jelmagyarázat:</p>
                   <div className="flex items-center gap-2 mb-2">
@@ -579,27 +701,45 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                <button 
-                  onClick={() => setViewedUser(null)} 
+                <button
+                  onClick={() => setViewedUser(null)}
                   className="w-full py-2.5 bg-blue-600/20 text-blue-400 border border-blue-500/30 hover:bg-blue-600/30 hover:border-blue-500/50 rounded-lg font-medium transition-all"
                 >
                   ← Vissza a sajátomhoz
                 </button>
-            </div>
-          )}
-        </div>
-      )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* JOBB OSZLOP */}
         <div className={`${activeTab === 'helpdesk' ? 'col-span-3' : 'lg:col-span-2'} h-full flex flex-col gap-4 overflow-hidden`}>
-          
+
           {/* NAVIGÁCIÓS GOMBOK */}
           <div className="bg-zinc-900 p-1 rounded-lg border border-zinc-800 flex gap-1 w-fit mx-auto lg:mx-0 shrink-0">
-            <button onClick={() => setActiveTab('list')} className={`px-6 py-2 rounded-md text-sm font-bold transition-all ${activeTab === 'list' ? 'bg-zinc-800 text-white shadow-lg border border-zinc-700' : 'text-zinc-500 hover:text-zinc-300'}`}>📋 Lista Nézet</button>
-            <button onClick={() => setActiveTab('calendar')} className={`px-6 py-2 rounded-md text-sm font-bold transition-all ${activeTab === 'calendar' ? 'bg-zinc-800 text-white shadow-lg border border-zinc-700' : 'text-zinc-500 hover:text-zinc-300'}`}>📅 Naptár Nézet</button>
-            <button onClick={() => setActiveTab('public')} className={`px-6 py-2 rounded-md text-sm font-bold transition-all ${activeTab === 'public' ? 'bg-zinc-800 text-white shadow-lg border border-zinc-700' : 'text-zinc-500 hover:text-zinc-300'}`}>🌍 Publikus</button>
+            <button
+              onClick={() => setActiveTab('list')}
+              className={`px-6 py-2 rounded-md text-sm font-bold transition-all ${activeTab === 'list' ? 'bg-zinc-800 text-white shadow-lg border border-zinc-700' : 'text-zinc-500 hover:text-zinc-300'}`}
+            >
+              📋 Lista Nézet
+            </button>
+            <button
+              onClick={() => setActiveTab('calendar')}
+              className={`px-6 py-2 rounded-md text-sm font-bold transition-all ${activeTab === 'calendar' ? 'bg-zinc-800 text-white shadow-lg border border-zinc-700' : 'text-zinc-500 hover:text-zinc-300'}`}
+            >
+              📅 Naptár Nézet
+            </button>
+            <button
+              onClick={() => setActiveTab('public')}
+              className={`px-6 py-2 rounded-md text-sm font-bold transition-all ${activeTab === 'public' ? 'bg-zinc-800 text-white shadow-lg border border-zinc-700' : 'text-zinc-500 hover:text-zinc-300'}`}
+            >
+              🌍 Publikus
+            </button>
             {userRole === 'admin' && (
-              <button onClick={() => setActiveTab('helpdesk')} className={`px-6 py-2 rounded-md text-sm font-bold transition-all ${activeTab === 'helpdesk' ? 'bg-zinc-800 text-white shadow-lg border border-zinc-700' : 'text-zinc-500 hover:text-zinc-300'}`}>
+              <button
+                onClick={() => setActiveTab('helpdesk')}
+                className={`px-6 py-2 rounded-md text-sm font-bold transition-all ${activeTab === 'helpdesk' ? 'bg-zinc-800 text-white shadow-lg border border-zinc-700' : 'text-zinc-500 hover:text-zinc-300'}`}
+              >
                 🆘 Helpdesk
               </button>
             )}
@@ -607,23 +747,31 @@ export default function DashboardPage() {
 
           {/* TARTALOM (Lista / Naptár / Helpdesk) */}
           <div className="flex-1 overflow-hidden relative">
+
+            {/* LISTA NÉZET */}
             {activeTab === 'list' ? (
               <div className="space-y-4 overflow-y-auto h-full pr-2 pb-10">
                 {events.length === 0 && <div className="text-center p-10 text-zinc-500 border border-dashed border-zinc-800 rounded-xl">Nincs megjeleníthető esemény.</div>}
+                
                 {events.map((event) => (
-                  <div key={event.id} className={`bg-zinc-900/50 p-4 rounded-xl border flex justify-between items-start group transition-colors ${editId === event.id ? 'border-yellow-600 bg-yellow-900/10' : 'border-zinc-800 hover:border-zinc-600'}`}>
+                  <div
+                    key={event.id}
+                    className={`bg-zinc-900/50 p-4 rounded-xl border flex justify-between items-start group transition-colors 
+                      ${editId === event.id ? 'border-yellow-600 bg-yellow-900/10' : 'border-zinc-800 hover:border-zinc-600'}`
+                    }
+                  >
                     <div className="min-w-0 flex-1 pr-4">
                       <h3 className="text-lg font-bold text-white flex flex-wrap gap-2 items-center">
                         <span className="truncate">{event.title}</span>
                         {event.owner !== user && <span className="text-xs bg-blue-900/30 text-blue-400 px-2 py-0.5 rounded border border-blue-900/50 shrink-0" title={`Tulajdonos: ${event.owner}`}>Megosztva veled</span>}
                         {event.is_meeting && <span title="Meeting" className="text-lg shrink-0">📹</span>}
-                      </h3> 
+                      </h3>
                       <div className="flex flex-wrap gap-2 text-sm mt-1">
                         <span className="text-red-400 bg-red-900/20 px-2 py-0.5 rounded border border-red-900/30 whitespace-nowrap">{formatListDate(event.start_date)}</span>
                         <span className="text-zinc-500">➝</span>
                         <span className="text-red-400 bg-red-900/20 px-2 py-0.5 rounded border border-red-900/30 whitespace-nowrap">{formatListDate(event.end_date)}</span>
                       </div>
-                      
+
                       {event.description && (
                         <p className="text-zinc-400 text-sm mt-2 italic border-l-2 border-zinc-700 pl-2 break-words whitespace-pre-wrap max-w-full">
                           {event.description}
@@ -632,19 +780,20 @@ export default function DashboardPage() {
 
                       {event.meeting_link && (
                         <div className="mt-3">
-                            <a 
-                              href={event.meeting_link.startsWith('http') ? event.meeting_link : `https://${event.meeting_link}`}
-                              target="_blank" 
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-700 hover:bg-green-600 text-white text-xs font-bold rounded transition-colors"
-                            >
-                              🎥 Csatlakozás a meetinghez
-                            </a>
+                          <a
+                            href={event.meeting_link.startsWith('http') ? event.meeting_link : `https://${event.meeting_link}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-700 hover:bg-green-600 text-white text-xs font-bold rounded transition-colors"
+                          >
+                            🎥 Csatlakozás a meetinghez
+                          </a>
                         </div>
                       )}
 
                       {event.participants && <p className="text-xs text-zinc-500 mt-2 break-words">Résztvevők: {event.participants}</p>}
                     </div>
+
                     {event.owner === user && (
                       <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2">
                         <button onClick={() => handleEditClick(event)} className="p-2 bg-zinc-800 hover:bg-yellow-600 hover:text-white rounded text-zinc-400 transition-colors">✏️</button>
@@ -654,18 +803,29 @@ export default function DashboardPage() {
                   </div>
                 ))}
               </div>
+
+
+            /* APTÁR NÉZET */
             ) : activeTab === 'calendar' ? (
               <div className="bg-white text-black rounded-xl border border-zinc-800 p-4 h-full shadow-inner relative overflow-hidden">
                 <Calendar
-                  localizer={localizer} events={calendarEvents} startAccessor="start" endAccessor="end" style={{ height: '100%' }} culture='hu'
-                  date={date} view={view} onNavigate={onNavigate} onView={onView}
+                  localizer={localizer}
+                  events={calendarEvents}
+                  startAccessor="start"
+                  endAccessor="end"
+                  style={{ height: '100%' }}
+                  culture='hu'
+                  date={date}
+                  view={view}
+                  onNavigate={onNavigate}
+                  onView={onView}
                   messages={{ next: "Következő", previous: "Előző", today: "Ma", month: "Hónap", week: "Hét", day: "Nap" }}
                   eventPropGetter={(event: any) => {
                     let newStyle = {
                       backgroundColor: '#1e40af',
                       color: 'white', borderRadius: '4px', border: '1px solid white'
                     };
-                
+
                     if (viewedUser) {
                       if (event.title === "Foglalt") {
                         newStyle.backgroundColor = '#52525b';
@@ -679,13 +839,17 @@ export default function DashboardPage() {
                       }
                     }
                     return { style: newStyle };
-                }}
+                  }}
                 />
               </div>
+
+
+            /* PUBLIKUS NÉZET */
             ) : activeTab === 'public' ? (
               <div className="space-y-4 overflow-y-auto h-full pr-2 pb-10">
                 <h3 className="text-xl font-bold text-white sticky top-0 bg-black/90 p-2 z-10 border-b border-zinc-800">Elérhető események</h3>
                 {publicEvents.length === 0 && <div className="text-center p-10 text-zinc-500">Jelenleg nincs publikus esemény.</div>}
+                
                 {publicEvents.map((event) => (
                   <div key={event.id} className="bg-zinc-900/50 p-4 rounded-xl border border-zinc-800 flex justify-between items-center hover:border-green-600/50 transition-colors">
                     <div className="min-w-0 flex-1 pr-4">
@@ -693,42 +857,48 @@ export default function DashboardPage() {
                       <div className="text-sm text-green-400 mt-1">{formatListDate(event.start_date)} - {formatListDate(event.end_date)}</div>
                       {event.description && <p className="text-zinc-400 text-sm mt-2 italic truncate">{event.description}</p>}
                     </div>
-                      {event.participants?.split(',').map(p => p.trim()).includes(user || "") ? (
-                        /* HA MÁR CSATLAKOZOTT -> LEADÁS GOMB */
-                        <button 
-                          onClick={() => leaveEvent(event.id)}
-                          className="px-4 py-2 bg-zinc-800 border border-red-900/50 hover:bg-red-900/30 text-red-400 font-bold rounded text-sm shrink-0 shadow-lg transition-all"
-                        >
-                          - Leadás
-                        </button>
-                      ) : (
-                        /* HA MÉG NINCS BENNE -> FELVÉTEL GOMB */
-                        <button 
-                          onClick={() => joinEvent(event.id)}
-                          className="px-4 py-2 bg-green-700 hover:bg-green-600 text-white font-bold rounded text-sm shrink-0 shadow-lg transition-transform active:scale-95"
-                        >
-                          + Felvétel
-                        </button>
-                      )}
+                    {event.participants?.split(',').map(p => p.trim()).includes(user || "") ? (
+                      /* HA MÁR CSATLAKOZOTT -> LEADÁS GOMB */
+                      <button
+                        onClick={() => leaveEvent(event.id)}
+                        className="px-4 py-2 bg-zinc-800 border border-red-900/50 hover:bg-red-900/30 text-red-400 font-bold rounded text-sm shrink-0 shadow-lg transition-all"
+                      >
+                        - Leadás
+                      </button>
+                    ) : (
+                      /* HA MÉG NINCS BENNE -> FELVÉTEL GOMB */
+                      <button
+                        onClick={() => joinEvent(event.id)}
+                        className="px-4 py-2 bg-green-700 hover:bg-green-600 text-white font-bold rounded text-sm shrink-0 shadow-lg transition-transform active:scale-95"
+                      >
+                        + Felvétel
+                      </button>
+                    )}
                     {event.owner === user && <span className="text-zinc-500 text-xs px-3">Saját esemény</span>}
                   </div>
                 ))}
               </div>
-          ) : (
+
+
+            /* HELPDESK NÉZET */
+            ) : (
               <div className="bg-zinc-900 border border-zinc-800 rounded-xl h-full flex overflow-hidden">
+                
+                {/* BAL OLDAL: LISTA */}
                 <div className="w-1/3 border-r border-zinc-800 p-4 overflow-y-auto">
                   <h3 className="text-zinc-400 text-xs uppercase font-bold mb-4">Beszélgetések</h3>
                   {supportUsers.length === 0 && <p className="text-zinc-500 text-sm">Nincs aktív beszélgetés.</p>}
+                  
                   {supportUsers.map((u) => (
-                    <button 
-                      key={u.session_id} 
+                    <button
+                      key={u.session_id}
                       onClick={() => { setSelectedSupportUser(u.session_id); fetchUserChatForAdmin(u.session_id); }}
                       className={`w-full text-left p-3 rounded mb-2 transition-all border flex justify-between items-center group
-                        ${selectedSupportUser === u.session_id 
+                        ${selectedSupportUser === u.session_id
                           ? 'bg-zinc-700 border-white text-white shadow-md'
                           : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800'
-                      }`}
-                  >
+                        }`}
+                    >
                       <span className="truncate text-sm font-medium">👤 {u.session_id}</span>
                       {u.needs_human ? (
                         <span className="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.6)]" title="Segítség kell!" />
@@ -740,6 +910,7 @@ export default function DashboardPage() {
                   <button onClick={fetchSupportRequests} className="mt-4 text-xs text-zinc-500 underline w-full text-center hover:text-white">Frissítés</button>
                 </div>
 
+                {/* JOBB OLDAL: CHAT */}
                 <div className="w-2/3 flex flex-col">
                   {selectedSupportUser ? (
                     <>
@@ -752,6 +923,7 @@ export default function DashboardPage() {
                           <button onClick={resolveChat} className="bg-green-700 hover:bg-green-600 text-white px-3 py-1 rounded text-xs font-bold">✅ Készre jelölés</button>
                         )}
                       </div>
+
                       <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-black/20">
                         {adminChatMessages.map((msg, idx) => (
                           <div key={idx} className={`flex ${msg.sender === 'admin' ? 'justify-end' : msg.sender === 'system' ? 'justify-center' : 'justify-start'}`}>
@@ -759,15 +931,16 @@ export default function DashboardPage() {
                               <span className="text-[10px] text-zinc-500 bg-zinc-900/50 px-2 py-1 rounded-full border border-zinc-800">{msg.message}</span>
                             ) : (
                               <div className={`max-w-[80%] p-2 rounded-lg text-sm ${msg.sender === 'admin' ? 'bg-blue-600 text-white' : 'bg-zinc-800 text-white'}`}>
-                                  <div className="text-[10px] opacity-50 mb-1">{msg.sender.toUpperCase()} - {new Date(msg.timestamp).toLocaleTimeString()}</div>
-                                  {msg.message}
+                                <div className="text-[10px] opacity-50 mb-1">{msg.sender.toUpperCase()} - {new Date(msg.timestamp).toLocaleTimeString()}</div>
+                                {msg.message}
                               </div>
                             )}
                           </div>
                         ))}
                       </div>
+
                       <div className="p-4 border-t border-zinc-800 flex gap-2 bg-zinc-900">
-                        <input 
+                        <input
                           className={`flex-1 bg-black border rounded px-3 py-2 text-white focus:outline-none ${isChatResolved ? 'border-green-900 cursor-not-allowed text-zinc-500' : 'border-zinc-600 focus:border-blue-500'}`}
                           placeholder={isChatResolved ? "Lezárva." : "Válasz..."}
                           value={adminReply}
@@ -776,7 +949,7 @@ export default function DashboardPage() {
                           disabled={isChatResolved}
                         />
                         <button onClick={sendAdminReply} disabled={isChatResolved} className={`px-4 py-2 rounded font-bold ${isChatResolved ? 'bg-zinc-800 text-zinc-500' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}>Küldés</button>
-                    </div>
+                      </div>
                     </>
                   ) : (
                     <div className="flex-1 flex items-center justify-center text-zinc-500">Válassz felhasználót!</div>
@@ -787,7 +960,8 @@ export default function DashboardPage() {
           </div>
         </div>
       </main>
-      
+
+      {/* CONTEXT MENU */}
       {contextMenu && (
         <div className="fixed bg-zinc-800 border border-zinc-600 shadow-2xl rounded-lg overflow-hidden z-[9999] min-w-[150px]" style={{ top: contextMenu.y, left: contextMenu.x }}>
           {contextMenu.event.resource.owner === user ? (
@@ -798,7 +972,8 @@ export default function DashboardPage() {
           ) : <div className="px-4 py-2 text-sm text-zinc-400">Tulajdonos: {contextMenu.event.resource.owner}</div>}
         </div>
       )}
-      
+
+      {/* MODAL: MFA SETUP */}
       {showMFAModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-zinc-900 p-8 rounded-2xl border border-zinc-700 max-w-sm w-full text-center">
@@ -811,6 +986,7 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* MODAL: NEW USER */}
       {showUserModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-zinc-900 p-8 rounded-2xl border border-zinc-700 max-w-sm w-full text-center">
@@ -819,17 +995,18 @@ export default function DashboardPage() {
               <input type="text" value={createUsername} onChange={(e) => setCreateUsername(e.target.value)} className="w-full p-3 bg-black border border-zinc-600 rounded text-white" placeholder="Username" required />
               <input type="password" value={createPassword} onChange={(e) => setCreatePassword(e.target.value)} className="w-full p-3 bg-black border border-zinc-600 rounded text-white" placeholder="Password" required />
               <div className="relative">
-              <select
-                value={createRole}
-                onChange={(e) => setCreateRole(e.target.value)}
-                className="w-full p-3 bg-black border border-zinc-600 rounded text-white appearance-none focus:outline-none focus:border-blue-500 transition-colors cursor-pointer">
-                <option value="user">User</option>
-                <option value="admin">Admin</option>
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-zinc-400">
-                <svg className="h-4 w-4 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                <select
+                  value={createRole}
+                  onChange={(e) => setCreateRole(e.target.value)}
+                  className="w-full p-3 bg-black border border-zinc-600 rounded text-white appearance-none focus:outline-none focus:border-blue-500 transition-colors cursor-pointer"
+                >
+                  <option value="user">User</option>
+                  <option value="admin">Admin</option>
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-zinc-400">
+                  <svg className="h-4 w-4 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
+                </div>
               </div>
-          </div>
               <button type="submit" className="w-full py-2 bg-green-700 hover:bg-green-600 text-white font-bold rounded">Létrehozás</button>
               <button type="button" onClick={() => setShowUserModal(false)} className="mt-2 text-zinc-500 text-sm hover:text-white">Mégse</button>
             </form>
@@ -840,7 +1017,7 @@ export default function DashboardPage() {
       <HelpDesk />
 
       {/* Törlés modal */}
-      <ConfirmModal 
+      <ConfirmModal
         isOpen={deleteId !== null}
         title="Törlés megerősítése"
         message={`Biztosan törölni szeretnéd ezt az eseményt?\nEz a művelet nem vonható vissza.`}
