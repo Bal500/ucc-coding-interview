@@ -141,18 +141,24 @@ async def create_user(
 logging.basicConfig(level=logging.INFO, filename="security.log")
 logger = logging.getLogger("security")
 @router.post("/request-reset")
-async def request_reset(request: ResetRequest, session: Session = Depends(get_session)):
-    user = session.exec(select(User).where(User.username == request.username)).first()
-    if user:
-        logger.info(f"Jelszó visszaállítás kérése: {user.username} - IP: {request.client.host}")
+async def request_reset(
+    data: ResetRequest,
+    request: Request,
+    session: Session = Depends(get_session)
+):
     """Jelszó visszaállítás kérése"""
-    user = session.exec(select(User).where(User.username == request.username)).first()
+    
+    user = session.exec(select(User).where(User.username == data.username)).first()
     
     if user:
+        client_ip = request.client.host if request.client else "Unknown"
+        logger.info(f"Jelszó visszaállítás kérése: {user.username} - IP: {client_ip}")
+        
         token = secrets.token_urlsafe(16)
         user.reset_token = token
         session.add(user)
         session.commit()
+        
         print(f"JELSZÓ VISSZAÁLLÍTÓ KÓD ({user.username}): {token}")
     
     return {"message": "Kód elküldve"}

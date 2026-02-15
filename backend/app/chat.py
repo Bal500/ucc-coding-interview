@@ -1,14 +1,53 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
+from google.genai import types
 from .database import get_session
 from .models import ChatMessage, User
 from .schemas import ChatRequest
 from .dependencies import get_current_user
-from .ai_client import get_ai_response
+from .ai_client import client
 from .utils import log_security_event
 
 router = APIRouter(tags=["Chat & Helpdesk"])
 
+SYSTEM_INSTRUCTION = """
+Te az "EseményKezelő" alkalmazás mesterséges intelligencia asszisztense vagy.
+A feladatod, hogy segíts a felhasználóknak az oldal használatában.
+Csak az alábbi funkciókról és információkról beszélhetsz, ne találj ki más dolgokat!
+
+AZ ALKALMAZÁS FUNKCIÓI:
+1. Események Kezelése:
+    - A felhasználók létrehozhatnak, szerkeszthetnek és törölhetnek eseményeket.
+    - Minden eseménynek van címe, kezdete, vége, leírása és résztvevői.
+    - "Meeting" opció: Ha bepipálják, a rendszer automatikusan generál egy Jitsi videóhívás linket.
+    - "Publikus" opció: Ha bepipálják, az esemény megjelenik a "Publikus" fülön mindenki számára.
+
+2. Naptár Nézetek:
+    - "Lista Nézet": Események felsorolása egymás alatt.
+    - "Naptár Nézet": Havi, heti vagy napi bontású naptár.
+    - "Publikus": Itt láthatóak a mások által publikussá tett események.
+
+3. Közösségi Funkciók:
+    - "Naptár megtekintése": A bal oldali sávban a felhasználók rákereshetnek más felhasználókra, és megtekinthetik a naptárukat.
+    - Adatvédelem: Ha más naptárát nézzük, a privát események csak "Foglalt" címmel, szürke színnel jelennek meg. A publikus események részletei láthatóak (zöld színnel).
+    - Csatlakozás/Leadás: A publikus eseményekhez bárki csatlakozhat (+ Felvétel), ekkor bekerül a saját naptárába is. Később le is adhatja (- Leadás).
+
+4. Felhasználók és Biztonság:
+    - Regisztráció és Bejelentkezés van.
+    - MFA (Kétlépcsős azonosítás): A fejlécben a "Pajzs" ikonnal aktiválható QR kód segítségével.
+    - Jogosultságok: Vannak "user" (átlagos) és "admin" (rendszergazda) felhasználók.
+    - Admin jogok: Új felhasználó létrehozása, Helpdesk kérések kezelése.
+    - A login oldalon van egy elfelejtett jelszó gomb, jelszót is itt lehet változtatni.
+
+5. Helpdesk:
+    - A felhasználók kérdezhetnek tőled (AI).
+    - Ha nem tudsz válaszolni, vagy a felhasználó kéri, az üzenet továbbítható egy hús-vér adminnak.
+
+FONTOS SZABÁLYOK:
+- Válaszolj röviden, lényegretörően és udvariasan magyarul.
+- Ne köszönj minden egyes üzenetben, csak ha a beszélgetés elején járunk, vagy ha a felhasználó köszön. Emlékezz a kontextusra!
+- Ha olyan funkcióról kérdeznek, ami nincs a fenti listában, mondd azt, hogy "Ez a funkció jelenleg nem elérhető."
+"""
 
 @router.post("/chat/send")
 async def send_chat_message(
@@ -30,7 +69,6 @@ async def send_chat_message(
         if last_msg.sender == "admin":
             is_human_mode = True
     
-    # Felhasználói üzenet mentése
     user_msg = ChatMessage(
         session_id=chat_req.session_id,
         sender="user",
@@ -38,7 +76,6 @@ async def send_chat_message(
         needs_human=is_human_mode
     )
     
-    # Emberi támogatás kérése
     if "ember" in chat_req.message.lower() or "help" in chat_req.message.lower():
         log_security_event(f"HELPDESK ATKAPCSOLÁS KERVE - Session: {chat_req.session_id}")
         user_msg.needs_human = True
@@ -58,12 +95,44 @@ async def send_chat_message(
     session.add(user_msg)
     session.commit()
     
-    # Ha emberi módban vagyunk, várjuk az admint
     if is_human_mode:
         return {"status": "waiting_for_admin"}
     
-    # AI válasz generálása
-    ai_reply_text = get_ai_response(chat_req.message)
+    # AI LOGIKA
+    try:
+        # 1. Előzmények betöltése
+        history_msgs = session.exec(
+            select(ChatMessage)
+            .where(ChatMessage.session_id == chat_req.session_id)
+            .where(ChatMessage.id != user_msg.id) 
+            .order_by(ChatMessage.timestamp)
+        ).all()
+
+        # 2. Előzmények formázása a Gemini számára (LISTA ÉPÍTÉS)
+        formatted_history = []
+        for msg in history_msgs:
+            role = "user" if msg.sender == "user" else "model"
+            if msg.message and msg.message.strip():
+                formatted_history.append(types.Content(
+                    role=role, 
+                    parts=[types.Part.from_text(text=msg.message)]
+                ))
+
+        # 3. Chat session létrehozása - ITT ADJUK ÁT A HISTORY-T
+        chat = client.chats.create(
+            model='gemini-2.0-flash',
+            config=types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION),
+            history=formatted_history
+        )
+
+        # 4. Válasz generálása
+        response = chat.send_message(chat_req.message)
+        ai_reply_text = response.text
+
+    except Exception as e:
+        print(f"AI Hiba: {e}")
+        ai_reply_text = "Bocsánat, egy kis technikai hiba történt az AI kapcsolatban."
+
     
     bot_reply = ChatMessage(
         session_id=chat_req.session_id,
@@ -82,7 +151,6 @@ async def get_chat_history(
     session_id: str,
     session: Session = Depends(get_session)
 ):
-    """Chat előzmények lekérése"""
     messages = session.exec(
         select(ChatMessage)
         .where(ChatMessage.session_id == session_id)
@@ -96,7 +164,6 @@ async def get_support_requests(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-    """Támogatási kérések listája (admin)"""
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Csak adminoknak!")
     
@@ -104,7 +171,6 @@ async def get_support_requests(
         select(ChatMessage).order_by(ChatMessage.timestamp.desc())
     ).all()
     
-    # Session státuszok gyűjtése
     session_status = {}
     for msg in all_msgs:
         if msg.session_id not in session_status:
@@ -124,7 +190,6 @@ async def get_user_chat_admin(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-    """Felhasználói chat lekérése (admin)"""
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Csak adminoknak!")
     
@@ -142,7 +207,6 @@ async def admin_reply(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-    """Admin válasz küldése"""
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Csak adminoknak!")
     
@@ -164,7 +228,6 @@ async def resolve_chat(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-    """Chat lezárása (admin)"""
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Csak adminoknak!")
     

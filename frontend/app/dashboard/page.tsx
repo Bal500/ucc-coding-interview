@@ -520,6 +520,21 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, [selectedSupportUser, activeTab]);
 
+  // Jobb-klikk felülírása
+  const EventWithContextMenu = ({ event }: { event: CalendarEvent }) => {
+    return (
+      <div
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setContextMenu({ x: e.clientX, y: e.clientY, event: event });
+        }}
+        className="h-full w-full"
+      >
+        {event.title}
+      </div>
+    );
+  };
 
   // UTILS
   const formatListDate = (d: string) => { try { return format(new Date(d), "yyyy. MM. dd. HH:mm", { locale: hu }); } catch (e) { return d; } };
@@ -819,6 +834,7 @@ export default function DashboardPage() {
                   view={view}
                   onNavigate={onNavigate}
                   onView={onView}
+                  components={{ event: EventWithContextMenu }}
                   messages={{ next: "Következő", previous: "Előző", today: "Ma", month: "Hónap", week: "Hét", day: "Nap" }}
                   eventPropGetter={(event: any) => {
                     let newStyle = {
