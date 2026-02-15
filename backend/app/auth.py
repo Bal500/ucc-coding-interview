@@ -38,7 +38,7 @@ async def login(data: LoginRequest, request: Request, session: Session = Depends
         
         totp = pyotp.totp.TOTP(user.mfa_secret)
         if not totp.verify(data.mfa_code):
-            log_security_event(f"HIBÁS MFA KÓD - User: {user.username} - IP: {request.client.host}")
+            log_security_event(f"HIBAS MFA KOD - User: {user.username} - IP: {request.client.host}")
             raise HTTPException(status_code=401, detail="Hibás 2FA kód!")
 
     # SIKERES belépés naplózása
