@@ -41,3 +41,4 @@ class UserCreate(BaseModel):
     """Felhasználó létrehozási DTO"""
     username: str
     password: str
+    role: str

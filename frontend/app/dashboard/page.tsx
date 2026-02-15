@@ -74,6 +74,7 @@ export default function DashboardPage() {
   const [isMfaEnabled, setIsMfaEnabled] = useState(false);
   const [createUsername, setCreateUsername] = useState("");
   const [createPassword, setCreatePassword] = useState("");
+  const [createRole, setCreateRole] = useState("user");
   const [showConflictModal, setShowConflictModal] = useState(false);
   const [conflictMessage, setConflictMessage] = useState("");
   const [pendingPayload, setPendingPayload] = useState<any>(null);
@@ -270,12 +271,13 @@ export default function DashboardPage() {
       const res = await fetch("https://localhost:8000/users", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-        body: JSON.stringify({ username: createUsername, password: createPassword }),
+        body: JSON.stringify({ username: createUsername, password: createPassword, role: createRole }),
       });
       if (res.ok) { 
         showAlert(`Sikeresen létrehozva: ${createUsername}`, "success"); 
         setCreateUsername(""); 
         setCreatePassword(""); 
+        setCreateRole("user")
         setShowUserModal(false); 
       } else { 
         const err = await res.json(); 
@@ -622,6 +624,18 @@ export default function DashboardPage() {
             <form onSubmit={handleCreateUser} className="space-y-4">
               <input type="text" value={createUsername} onChange={(e) => setCreateUsername(e.target.value)} className="w-full p-3 bg-black border border-zinc-600 rounded text-white" placeholder="Username" required />
               <input type="password" value={createPassword} onChange={(e) => setCreatePassword(e.target.value)} className="w-full p-3 bg-black border border-zinc-600 rounded text-white" placeholder="Password" required />
+              <div className="relative">
+              <select
+                value={createRole}
+                onChange={(e) => setCreateRole(e.target.value)}
+                className="w-full p-3 bg-black border border-zinc-600 rounded text-white appearance-none focus:outline-none focus:border-blue-500 transition-colors cursor-pointer">
+                <option value="user">User</option>
+                <option value="admin">Admin</option>
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-zinc-400">
+                <svg className="h-4 w-4 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+              </div>
+          </div>
               <button type="submit" className="w-full py-2 bg-green-700 hover:bg-green-600 text-white font-bold rounded">Létrehozás</button>
               <button type="button" onClick={() => setShowUserModal(false)} className="mt-2 text-zinc-500 text-sm hover:text-white">Mégse</button>
             </form>

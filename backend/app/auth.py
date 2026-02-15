@@ -129,7 +129,7 @@ async def create_user(
     new_user = User(
         username=user_data.username,
         hashed_password=get_password_hash(user_data.password),
-        role="user",
+        role=user_data.role,
         mfa_enabled=False
     )
     session.add(new_user)
