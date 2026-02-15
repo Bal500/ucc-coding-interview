@@ -9,6 +9,7 @@ import { hu } from 'date-fns/locale';
 import "react-big-calendar/lib/css/react-big-calendar.css"; 
 import { useAlert } from '@/components/AlertContext'; 
 import ConfirmModal from '@/components/ConfirmModal';
+import SearchableSelect from "../../components/SearchableSelect";
 
 const locales = { 'hu': hu };
 const localizer = dateFnsLocalizer({
@@ -493,34 +494,21 @@ export default function DashboardPage() {
           <button onClick={handleLogout} className="px-4 py-2 bg-zinc-900 border border-zinc-700 rounded hover:border-red-600 text-sm text-white transition-colors">Kilépés</button>
         </div>
       </header>
-
-      {/* FŐ CONTAINER - Módosított magasság és grid struktúra */}
+      {/* FŐ CONTAINER */}
       <main className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-[calc(100vh-140px)]">
-        
-      {/* BAL OSZLOP: ŰRLAP és NAPTÁRVÁLASZTÓ */}
-      {activeTab !== 'helpdesk' && (
-        <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800 h-fit max-h-full overflow-y-auto shadow-xl transition-all">
-          
+        {/* BAL OSZLOP: ŰRLAP és NAPTÁR VÁLASZTÓ */}
+        {activeTab !== 'helpdesk' && (
+          <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800 h-fit max-h-full overflow-y-auto shadow-xl transition-all">
           {/* NAPTÁR VÁLASZTÓ */}
           <div className="mb-6 pb-6 border-b border-zinc-800">
-            <h2 className="text-xs font-bold text-zinc-400 mb-2 uppercase tracking-wider">Naptár megtekintése</h2>
-            <div className="relative">
-              <select 
-                className="w-full p-2.5 bg-black border border-zinc-700 rounded-lg text-white appearance-none focus:outline-none focus:border-blue-500 transition-colors cursor-pointer"
-                value={viewedUser || ""}
-                onChange={(e) => setViewedUser(e.target.value || null)}
-              >
-                <option value="">👤 Saját naptáram</option>
-                {allUsers.filter(u => u !== user).map(u => (
-                  <option key={u} value={u}>📅 {u} naptára</option>
-                ))}
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-zinc-400">
-                <svg className="h-4 w-4 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                <SearchableSelect
+                  label="Naptár megtekintése"
+                  placeholder="Keresés felhasználóra..."
+                  options={allUsers.filter(u => u !== user)}
+                  value={viewedUser}
+                  onChange={(val) => setViewedUser(val)}
+                />                
               </div>
-            </div>
-          </div>
-
           {/* SAJÁT NAPTÁR vs MÁS NAPTÁRA */}
           {!viewedUser ? (
             <>
@@ -583,11 +571,11 @@ export default function DashboardPage() {
                   <p className="text-xs text-zinc-400 mb-2 uppercase font-bold tracking-wider">Jelmagyarázat:</p>
                   <div className="flex items-center gap-2 mb-2">
                     <div className="w-3 h-3 bg-zinc-600 rounded-full"></div>
-                    <span className="text-sm text-zinc-300">Privát (Foglalt)</span>
+                    <span className="text-sm text-zinc-300">Privát (foglalt)</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 bg-emerald-700 rounded-full"></div>
-                    <span className="text-sm text-zinc-300">Publikus (Látható)</span>
+                    <span className="text-sm text-zinc-300">Publikus (látható)</span>
                   </div>
                 </div>
 
