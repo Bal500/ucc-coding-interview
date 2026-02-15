@@ -191,9 +191,6 @@ async def join_event(
     event = session.get(Event, event_id)
     if not event:
         raise HTTPException(status_code=404, detail="Esemény nem található")
-    
-    if event.owner == current_user.username:
-        return {"message": "Ez a saját eseményed."}
 
     participants = []
     if event.participants:
