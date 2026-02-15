@@ -25,6 +25,7 @@ interface EventItem {
   participants?: string;
   is_meeting?: boolean;
   meeting_link?: string;
+  is_public?: boolean;
 }
 
 interface CalendarEvent {
@@ -49,7 +50,9 @@ export default function DashboardPage() {
   
   const [events, setEvents] = useState<EventItem[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
-  const [activeTab, setActiveTab] = useState<'list' | 'calendar' | 'helpdesk'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'calendar' | 'helpdesk' | 'public'>('list');
+  const [isPublic, setIsPublic] = useState(false);
+  const [publicEvents, setPublicEvents] = useState<EventItem[]>([]);
 
   // CONFIRM MODAL STATE
   const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -132,6 +135,40 @@ export default function DashboardPage() {
     } catch (err) { console.error(err); }
   };
 
+  const fetchPublicEvents = async () => {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch("https://localhost:8000/events/public", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPublicEvents(data);
+      }
+    } catch (err) { console.error(err); }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'public') {
+      fetchPublicEvents();
+    }
+  }, [activeTab]);
+
+  const joinEvent = async (id: number) => {
+    const token = localStorage.getItem("token");
+    const res = await fetch(`https://localhost:8000/events/${id}/join`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (res.ok) {
+      showAlert(data.message, "success");
+      fetchEvents();
+    } else {
+      showAlert(data.detail || "Hiba történt", "error");
+    }
+  };
+
   const executeSave = async (payload: any) => {
     const token = localStorage.getItem("token");
     let url = "https://localhost:8000/events";
@@ -181,7 +218,8 @@ export default function DashboardPage() {
       end_date: endDate,
       description: newDesc,
       participants: newParticipants,
-      is_meeting: isMeeting
+      is_meeting: isMeeting,
+      is_public: isPublic
     };
   
     try {
@@ -231,6 +269,7 @@ export default function DashboardPage() {
     setNewDesc(event.description || "");
     setNewParticipants(event.participants || "");
     setIsMeeting(event.is_meeting || false);
+    setIsPublic(event.is_public || false)
   };
 
   const handleCalendarEdit = (calEvent: CalendarEvent) => {
@@ -239,7 +278,7 @@ export default function DashboardPage() {
   };
 
   const resetForm = () => { 
-    setEditId(null); setNewTitle(""); setStartDate(""); setEndDate(""); setNewDesc(""); setNewParticipants(""); setIsMeeting(false); 
+    setEditId(null); setNewTitle(""); setStartDate(""); setEndDate(""); setNewDesc(""); setNewParticipants(""); setIsMeeting(false); setIsPublic(false);
   };
 
   const askDelete = (id: number) => {
@@ -424,15 +463,24 @@ export default function DashboardPage() {
             
             <div className="flex items-center gap-2 pt-2">
                 <input 
-                    type="checkbox" 
-                    id="isMeeting" 
-                    checked={isMeeting} 
-                    onChange={(e) => setIsMeeting(e.target.checked)}
-                    className="w-4 h-4 accent-blue-600"
+                  type="checkbox" 
+                  id="isMeeting" 
+                  checked={isMeeting} 
+                  onChange={(e) => setIsMeeting(e.target.checked)}
+                  className="w-4 h-4 accent-blue-600"
                 />
                 <label htmlFor="isMeeting" className="text-sm text-zinc-300 cursor-pointer">Meeting</label>
             </div>
-
+            <div className="flex items-center gap-2">
+              <input 
+                  type="checkbox" 
+                  id="isPublic" 
+                  checked={isPublic} 
+                  onChange={(e) => setIsPublic(e.target.checked)}
+                  className="w-4 h-4 accent-green-600"
+              />
+              <label htmlFor="isPublic" className="text-sm text-zinc-300 cursor-pointer">Publikus esemény</label>
+            </div>
             <div><label className="text-xs text-zinc-400">Leírás</label><textarea value={newDesc} onChange={e => setNewDesc(e.target.value)} className="w-full p-2 bg-black border border-zinc-700 rounded text-white h-24 mt-1" /></div>
             <div className="flex gap-2 pb-2">
               <button type="submit" className={`flex-1 py-2 font-bold rounded text-white transition-colors ${editId ? 'bg-yellow-600 hover:bg-yellow-500' : 'bg-red-700 hover:bg-red-600'}`}>{editId ? "Mentés" : "Hozzáadás"}</button>
@@ -449,6 +497,7 @@ export default function DashboardPage() {
           <div className="bg-zinc-900 p-1 rounded-lg border border-zinc-800 flex gap-1 w-fit mx-auto lg:mx-0 shrink-0">
             <button onClick={() => setActiveTab('list')} className={`px-6 py-2 rounded-md text-sm font-bold transition-all ${activeTab === 'list' ? 'bg-zinc-800 text-white shadow-lg border border-zinc-700' : 'text-zinc-500 hover:text-zinc-300'}`}>📋 Lista Nézet</button>
             <button onClick={() => setActiveTab('calendar')} className={`px-6 py-2 rounded-md text-sm font-bold transition-all ${activeTab === 'calendar' ? 'bg-zinc-800 text-white shadow-lg border border-zinc-700' : 'text-zinc-500 hover:text-zinc-300'}`}>📅 Naptár Nézet</button>
+            <button onClick={() => setActiveTab('public')} className={`px-6 py-2 rounded-md text-sm font-bold transition-all ${activeTab === 'public' ? 'bg-zinc-800 text-white shadow-lg border border-zinc-700' : 'text-zinc-500 hover:text-zinc-300'}`}>🌍 Publikus</button>
             {userRole === 'admin' && (
               <button onClick={() => setActiveTab('helpdesk')} className={`px-6 py-2 rounded-md text-sm font-bold transition-all ${activeTab === 'helpdesk' ? 'bg-zinc-800 text-white shadow-lg border border-zinc-700' : 'text-zinc-500 hover:text-zinc-300'}`}>
                 🆘 Helpdesk
@@ -520,7 +569,30 @@ export default function DashboardPage() {
                   components={{ event: EventWithContextMenu }}
                 />
               </div>
-            ) : (
+            ) : activeTab === 'public' ? (
+              <div className="space-y-4 overflow-y-auto h-full pr-2 pb-10">
+                <h3 className="text-xl font-bold text-white sticky top-0 bg-black/90 p-2 z-10 border-b border-zinc-800">Elérhető események</h3>
+                {publicEvents.length === 0 && <div className="text-center p-10 text-zinc-500">Jelenleg nincs publikus esemény.</div>}
+                {publicEvents.map((event) => (
+                  <div key={event.id} className="bg-zinc-900/50 p-4 rounded-xl border border-zinc-800 flex justify-between items-center hover:border-green-600/50 transition-colors">
+                    <div className="min-w-0 flex-1 pr-4">
+                      <h3 className="text-lg font-bold text-white">{event.title} <span className="text-xs font-normal text-zinc-500">by {event.owner}</span></h3>
+                      <div className="text-sm text-green-400 mt-1">{formatListDate(event.start_date)} - {formatListDate(event.end_date)}</div>
+                      {event.description && <p className="text-zinc-400 text-sm mt-2 italic truncate">{event.description}</p>}
+                    </div>
+                    {event.owner !== user && (
+                      <button 
+                        onClick={() => joinEvent(event.id)}
+                        className="px-4 py-2 bg-green-700 hover:bg-green-600 text-white font-bold rounded text-sm shrink-0 shadow-lg transition-transform active:scale-95"
+                      >
+                        + Felvétel
+                      </button>
+                    )}
+                    {event.owner === user && <span className="text-zinc-500 text-xs px-3">Saját esemény</span>}
+                  </div>
+                ))}
+              </div>
+          ) : (
               <div className="bg-zinc-900 border border-zinc-800 rounded-xl h-full flex overflow-hidden">
                 <div className="w-1/3 border-r border-zinc-800 p-4 overflow-y-auto">
                   <h3 className="text-zinc-400 text-xs uppercase font-bold mb-4">Beszélgetések</h3>

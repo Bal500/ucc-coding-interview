@@ -25,6 +25,7 @@ class Event(SQLModel, table=True):
     participants: Optional[str] = None
     is_meeting: bool = False
     meeting_link: Optional[str] = None
+    is_public: bool = False
 
 
 class ChatMessage(SQLModel, table=True):

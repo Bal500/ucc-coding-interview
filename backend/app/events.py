@@ -90,6 +90,7 @@ async def update_event(
     db_event.title = sanitize(event_update.title)
     db_event.start_date = event_update.start_date
     db_event.end_date = event_update.end_date
+    db_event.is_public = event_update.is_public
     
     if event_update.is_meeting and not db_event.meeting_link:
         db_event.meeting_link = sanitize(generate_meet_link())
@@ -167,3 +168,41 @@ async def check_conflict(
         }
     
     return {"conflict": False}
+
+@router.get("/public", response_model=List[Event])
+async def get_public_events(session: Session = Depends(get_session)):
+    """Minden publikus esemény lekérése"""
+    events = session.exec(select(Event).where(Event.is_public == True)).all()
+    
+    for event in events:
+        if event.description:
+            event.description = decrypt_text(event.description)
+            
+    return events
+
+@router.post("/{event_id}/join")
+async def join_event(
+    event_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    """Jelentkezés egy publikus eseményre"""
+    event = session.get(Event, event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Esemény nem található")
+    
+    if event.owner == current_user.username:
+        return {"message": "Ez a saját eseményed."}
+
+    participants = []
+    if event.participants:
+        participants = [p.strip() for p in event.participants.split(",")]
+    
+    if current_user.username not in participants:
+        participants.append(current_user.username)
+        event.participants = ", ".join(participants)
+        session.add(event)
+        session.commit()
+        return {"message": "Sikeresen hozzáadva a naptáradhoz!"}
+    
+    return {"message": "Már hozzáadtad ezt az eseményt."}
