@@ -124,11 +124,11 @@ export default function DashboardPage() {
         const data: EventItem[] = await res.json();
         setEvents(data);
         const formattedEvents: CalendarEvent[] = data.map(event => ({
-            id: event.id,
-            title: event.title,
-            start: new Date(event.start_date),
-            end: new Date(event.end_date),
-            resource: event 
+          id: event.id,
+          title: event.title,
+          start: new Date(event.start_date),
+          end: new Date(event.end_date),
+          resource: event 
         }));
         setCalendarEvents(formattedEvents);
       }
@@ -352,11 +352,11 @@ export default function DashboardPage() {
   const fetchSupportRequests = async () => {
     const token = localStorage.getItem("token");
     const res = await fetch("https://localhost:8000/admin/support-requests", {
-        headers: { "Authorization": `Bearer ${token}` }
+      headers: { "Authorization": `Bearer ${token}` }
     });
     if (res.ok) {
-        const data = await res.json();
-        setSupportUsers(data);
+      const data = await res.json();
+      setSupportUsers(data);
     }
   };
 
@@ -366,14 +366,14 @@ export default function DashboardPage() {
       headers: { "Authorization": `Bearer ${token}` }
     });
     if (res.ok) {
-        const data = await res.json();
-        setAdminChatMessages(data);
-        if (data.length > 0) {
-          const lastMsg = data[data.length - 1];
-          setIsChatResolved(!lastMsg.needs_human);
-        } else {
-          setIsChatResolved(false);
-        }
+      const data = await res.json();
+      setAdminChatMessages(data);
+      if (data.length > 0) {
+        const lastMsg = data[data.length - 1];
+        setIsChatResolved(!lastMsg.needs_human);
+      } else {
+        setIsChatResolved(false);
+      }
     }
   };
 
