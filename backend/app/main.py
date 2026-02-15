@@ -63,10 +63,6 @@ async def root():
         "docs": "/docs"
     }
 
-def list_models():
-    for i, m in zip(range(5), genai.list_models()):
-        print(f"Name: {m.name} Description: {m.description} support: {m.supported_generation_methods}")
-
 if __name__ == "__main__":
     use_ssl = os.path.exists("key.pem") and os.path.exists("cert.pem")
     
@@ -88,4 +84,3 @@ if __name__ == "__main__":
             port=8000,
             reload=True
         )
-    list_models()
