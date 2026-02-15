@@ -149,9 +149,14 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
     if (activeTab === 'public') {
       fetchPublicEvents();
+      interval = setInterval(fetchPublicEvents, 1000);
     }
+    
+    return () => clearInterval(interval);
   }, [activeTab]);
 
   const joinEvent = async (id: number) => {
