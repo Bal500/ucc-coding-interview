@@ -206,3 +206,27 @@ async def join_event(
         return {"message": "Sikeresen hozzáadva a naptáradhoz!"}
     
     return {"message": "Már hozzáadtad ezt az eseményt."}
+
+@router.post("/{event_id}/leave")
+async def leave_event(
+    event_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    """Leiratkozás egy publikus eseményről"""
+    event = session.get(Event, event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Esemény nem található")
+    
+    if event.participants:
+        participant_list = [p.strip() for p in event.participants.split(",")]
+        
+        if current_user.username in participant_list:
+            participant_list.remove(current_user.username)
+            event.participants = ", ".join(participant_list)
+            
+            session.add(event)
+            session.commit()
+            return {"message": "Sikeresen leiratkoztál az eseményről."}
+    
+    return {"message": "Nem vagy rajta a résztvevők listáján."}
