@@ -15,6 +15,7 @@ from .schemas import (
 from .dependencies import get_password_hash, verify_password, get_current_user, create_access_token
 from .rate_limiter import limiter
 from .utils import log_security_event
+from typing import List
 
 router = APIRouter(prefix="", tags=["Authentication"])
 
@@ -171,3 +172,12 @@ async def confirm_reset(data: ResetConfirm, session: Session = Depends(get_sessi
     session.commit()
     
     return {"message": "Sikeres jelszócsere!"}
+
+@router.get("/users/list", response_model=List[str])
+async def list_usernames(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    """Visszaadja az összes felhasználó nevét"""
+    users = session.exec(select(User)).all()
+    return [u.username for u in users]

@@ -53,6 +53,8 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<'list' | 'calendar' | 'helpdesk' | 'public'>('list');
   const [isPublic, setIsPublic] = useState(false);
   const [publicEvents, setPublicEvents] = useState<EventItem[]>([]);
+  const [allUsers, setAllUsers] = useState<string[]>([]);
+  const [viewedUser, setViewedUser] = useState<string | null>(null);
 
   // CONFIRM MODAL STATE
   const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -110,19 +112,28 @@ export default function DashboardPage() {
     } else {
       if (storedUser) setUser(storedUser);
       if (storedRole) setUserRole(storedRole);
+      fetchUsers();
       fetchEvents();
     }
   }, [router]);
 
   const fetchEvents = async () => {
     const token = localStorage.getItem("token");
+    
+    const baseUrl = "https://localhost:8000";
+    const url = viewedUser 
+      ? `${baseUrl}/events/user/${viewedUser}`
+      : `${baseUrl}/events`;
+
     try {
-      const res = await fetch("https://localhost:8000/events", {
+      const res = await fetch(url, {
         headers: { "Authorization": `Bearer ${token}` } 
       });
+      
       if(res.ok){
         const data: EventItem[] = await res.json();
         setEvents(data);
+        
         const formattedEvents: CalendarEvent[] = data.map(event => ({
           id: event.id,
           title: event.title,
@@ -131,9 +142,15 @@ export default function DashboardPage() {
           resource: event 
         }));
         setCalendarEvents(formattedEvents);
+      } else {
+        console.error("Hiba a lekérdezésben:", res.status);
       }
     } catch (err) { console.error(err); }
   };
+
+  useEffect(() => {
+    fetchEvents();
+  }, [viewedUser]);
 
   const fetchPublicEvents = async () => {
     const token = localStorage.getItem("token");
@@ -146,6 +163,16 @@ export default function DashboardPage() {
         setPublicEvents(data);
       }
     } catch (err) { console.error(err); }
+  };
+
+  const fetchUsers = async () => {
+    const token = localStorage.getItem("token");
+    const res = await fetch("https://localhost:8000/users/list", {
+      headers: { "Authorization": `Bearer ${token}` }
+    });
+    if (res.ok) {
+      setAllUsers(await res.json());
+    }
   };
 
   useEffect(() => {
@@ -295,6 +322,8 @@ export default function DashboardPage() {
   };
 
   const handleCalendarEdit = (calEvent: CalendarEvent) => {
+    if (viewedUser) return; 
+
     const originalEvent = events.find(e => e.id === calEvent.id);
     if (originalEvent) handleEditClick(originalEvent);
   };
@@ -468,49 +497,110 @@ export default function DashboardPage() {
       {/* FŐ CONTAINER - Módosított magasság és grid struktúra */}
       <main className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-[calc(100vh-140px)]">
         
-        {/* BAL OSZLOP: ŰRLAP (Teljes magasság, görgethető) */}
-        {activeTab !== 'helpdesk' && (
+      {/* BAL OSZLOP: ŰRLAP és NAPTÁRVÁLASZTÓ */}
+      {activeTab !== 'helpdesk' && (
         <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800 h-fit max-h-full overflow-y-auto shadow-xl transition-all">
-          <h2 className="text-xl font-bold mb-4 text-white flex justify-between items-center">{editId ? "Szerkesztés" : "Új Esemény"} {editId && <span className="text-xs bg-yellow-600/20 text-yellow-500 px-2 py-1 rounded border border-yellow-600/40">Szerkesztés</span>}</h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div><label className="text-xs text-zinc-400">Megnevezés</label><input value={newTitle} onChange={e => setNewTitle(e.target.value)} className="w-full p-2 bg-black border border-zinc-700 rounded text-white mt-1" required /></div>
-            <div className="grid grid-cols-2 gap-2">
-              <div><label className="text-xs text-zinc-400">Kezdete</label><input type="datetime-local" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full p-2 bg-black border border-zinc-700 rounded text-white mt-1 [color-scheme:dark]" required /></div>
-              <div><label className="text-xs text-zinc-400">Vége</label><input type="datetime-local" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full p-2 bg-black border border-zinc-700 rounded text-white mt-1 [color-scheme:dark]" required /></div>
+          
+          {/* NAPTÁR VÁLASZTÓ */}
+          <div className="mb-6 pb-6 border-b border-zinc-800">
+            <h2 className="text-xs font-bold text-zinc-400 mb-2 uppercase tracking-wider">Naptár megtekintése</h2>
+            <div className="relative">
+              <select 
+                className="w-full p-2.5 bg-black border border-zinc-700 rounded-lg text-white appearance-none focus:outline-none focus:border-blue-500 transition-colors cursor-pointer"
+                value={viewedUser || ""}
+                onChange={(e) => setViewedUser(e.target.value || null)}
+              >
+                <option value="">👤 Saját naptáram</option>
+                {allUsers.filter(u => u !== user).map(u => (
+                  <option key={u} value={u}>📅 {u} naptára</option>
+                ))}
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-zinc-400">
+                <svg className="h-4 w-4 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+              </div>
             </div>
-            <div>
-              <label className="text-xs text-zinc-400 flex justify-between">Résztvevők <span className="text-zinc-600">(vesszővel elválasztva)</span></label>
-              <input value={newParticipants} onChange={e => setNewParticipants(e.target.value)} className="w-full p-2 bg-black border border-zinc-700 rounded text-white mt-1" placeholder="Pl. Balázs" />
+          </div>
+
+          {/* SAJÁT NAPTÁR vs MÁS NAPTÁRA */}
+          {!viewedUser ? (
+            <>
+              {/* ŰRLAP (csak a sajátnál) */}
+              <h2 className="text-xl font-bold mb-4 text-white flex justify-between items-center">
+                {editId ? "Szerkesztés" : "Új Esemény"} 
+                {editId && <span className="text-xs bg-yellow-600/20 text-yellow-500 px-2 py-1 rounded border border-yellow-600/40">Szerkesztés</span>}
+              </h2>
+              
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div><label className="text-xs text-zinc-400">Megnevezés</label><input value={newTitle} onChange={e => setNewTitle(e.target.value)} className="w-full p-2 bg-black border border-zinc-700 rounded text-white mt-1" required /></div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div><label className="text-xs text-zinc-400">Kezdete</label><input type="datetime-local" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full p-2 bg-black border border-zinc-700 rounded text-white mt-1 [color-scheme:dark]" required /></div>
+                  <div><label className="text-xs text-zinc-400">Vége</label><input type="datetime-local" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full p-2 bg-black border border-zinc-700 rounded text-white mt-1 [color-scheme:dark]" required /></div>
+                </div>
+                <div>
+                  <label className="text-xs text-zinc-400 flex justify-between">Résztvevők <span className="text-zinc-600">(vesszővel elválasztva)</span></label>
+                  <input value={newParticipants} onChange={e => setNewParticipants(e.target.value)} className="w-full p-2 bg-black border border-zinc-700 rounded text-white mt-1" placeholder="Pl. Balázs" />
+                </div>
+                
+                <div className="flex flex-col gap-2 pt-2">
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="checkbox" 
+                      id="isMeeting" 
+                      checked={isMeeting} 
+                      onChange={(e) => setIsMeeting(e.target.checked)}
+                      className="w-4 h-4 accent-blue-600 rounded cursor-pointer"
+                    />
+                    <label htmlFor="isMeeting" className="text-sm text-zinc-300 cursor-pointer select-none">Meeting</label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="checkbox" 
+                      id="isPublic" 
+                      checked={isPublic} 
+                      onChange={(e) => setIsPublic(e.target.checked)}
+                      className="w-4 h-4 accent-green-600 rounded cursor-pointer"
+                    />
+                    <label htmlFor="isPublic" className="text-sm text-zinc-300 cursor-pointer select-none">Publikus esemény</label>
+                  </div>
+                </div>
+
+                <div><label className="text-xs text-zinc-400">Leírás</label><textarea value={newDesc} onChange={e => setNewDesc(e.target.value)} className="w-full p-2 bg-black border border-zinc-700 rounded text-white h-24 mt-1" /></div>
+                
+                <div className="flex gap-2 pb-2 pt-2">
+                  <button type="submit" className={`flex-1 py-2 font-bold rounded text-white transition-colors ${editId ? 'bg-yellow-600 hover:bg-yellow-500' : 'bg-red-700 hover:bg-red-600'}`}>{editId ? "Mentés" : "Hozzáadás"}</button>
+                  {editId && (<button type="button" onClick={resetForm} className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded transition-colors">Mégse</button>)}
+                </div>
+              </form>
+            </>
+          ) : (
+            /* MÁS NAPTÁRÁT NÉZZÜK (információs blokk) */
+            <div className="flex flex-col items-center justify-center py-10 text-center animate-in fade-in duration-300">
+                <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center mb-4 text-3xl">📅</div>
+                <h3 className="text-lg font-bold text-white mb-1">{viewedUser}</h3>
+                <p className="text-zinc-500 text-sm mb-6">naptárát látod jelenleg.</p>
+                
+                <div className="bg-zinc-800/50 p-4 rounded-lg text-left w-full mb-6 border border-zinc-700/50">
+                  <p className="text-xs text-zinc-400 mb-2 uppercase font-bold tracking-wider">Jelmagyarázat:</p>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-3 h-3 bg-zinc-600 rounded-full"></div>
+                    <span className="text-sm text-zinc-300">Privát (Foglalt)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-emerald-700 rounded-full"></div>
+                    <span className="text-sm text-zinc-300">Publikus (Látható)</span>
+                  </div>
+                </div>
+
+                <button 
+                  onClick={() => setViewedUser(null)} 
+                  className="w-full py-2.5 bg-blue-600/20 text-blue-400 border border-blue-500/30 hover:bg-blue-600/30 hover:border-blue-500/50 rounded-lg font-medium transition-all"
+                >
+                  ← Vissza a sajátomhoz
+                </button>
             </div>
-            
-            <div className="flex items-center gap-2 pt-2">
-                <input 
-                  type="checkbox" 
-                  id="isMeeting" 
-                  checked={isMeeting} 
-                  onChange={(e) => setIsMeeting(e.target.checked)}
-                  className="w-4 h-4 accent-blue-600"
-                />
-                <label htmlFor="isMeeting" className="text-sm text-zinc-300 cursor-pointer">Meeting</label>
-            </div>
-            <div className="flex items-center gap-2">
-              <input 
-                  type="checkbox" 
-                  id="isPublic" 
-                  checked={isPublic} 
-                  onChange={(e) => setIsPublic(e.target.checked)}
-                  className="w-4 h-4 accent-green-600"
-              />
-              <label htmlFor="isPublic" className="text-sm text-zinc-300 cursor-pointer">Publikus esemény</label>
-            </div>
-            <div><label className="text-xs text-zinc-400">Leírás</label><textarea value={newDesc} onChange={e => setNewDesc(e.target.value)} className="w-full p-2 bg-black border border-zinc-700 rounded text-white h-24 mt-1" /></div>
-            <div className="flex gap-2 pb-2">
-              <button type="submit" className={`flex-1 py-2 font-bold rounded text-white transition-colors ${editId ? 'bg-yellow-600 hover:bg-yellow-500' : 'bg-red-700 hover:bg-red-600'}`}>{editId ? "Mentés" : "Hozzáadás"}</button>
-              {editId && (<button type="button" onClick={resetForm} className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded transition-colors">Mégse</button>)}
-            </div>
-          </form>
+          )}
         </div>
-        )}
+      )}
 
         {/* JOBB OSZLOP */}
         <div className={`${activeTab === 'helpdesk' ? 'col-span-3' : 'lg:col-span-2'} h-full flex flex-col gap-4 overflow-hidden`}>
@@ -582,13 +672,26 @@ export default function DashboardPage() {
                   localizer={localizer} events={calendarEvents} startAccessor="start" endAccessor="end" style={{ height: '100%' }} culture='hu'
                   date={date} view={view} onNavigate={onNavigate} onView={onView}
                   messages={{ next: "Következő", previous: "Előző", today: "Ma", month: "Hónap", week: "Hét", day: "Nap" }}
-                  eventPropGetter={(event: any) => ({ 
-                    style: { 
-                      backgroundColor: event.resource.owner === user ? '#b91c1c' : '#1e40af',
-                      color: 'white', borderRadius: '4px', border: '1px solid white', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' 
-                    } 
-                  })}
-                  components={{ event: EventWithContextMenu }}
+                  eventPropGetter={(event: any) => {
+                    let newStyle = {
+                      backgroundColor: '#1e40af',
+                      color: 'white', borderRadius: '4px', border: '1px solid white'
+                    };
+                
+                    if (viewedUser) {
+                      if (event.title === "Foglalt") {
+                        newStyle.backgroundColor = '#52525b';
+                        newStyle.color = '#d4d4d8';
+                      } else {
+                        newStyle.backgroundColor = '#047857';
+                      }
+                    } else {
+                      if (event.resource.owner === user) {
+                        newStyle.backgroundColor = '#b91c1c';
+                      }
+                    }
+                    return { style: newStyle };
+                }}
                 />
               </div>
             ) : activeTab === 'public' ? (

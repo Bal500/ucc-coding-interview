@@ -44,6 +44,38 @@ async def create_event(
     event.description = decrypt_text(event.description)
     return event
 
+@router.get("/user/{target_username}", response_model=List[Event])
+async def read_user_events(
+    target_username: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    """Egy adott felhasználó naptárának lekérése"""
+    
+    events = session.exec(select(Event).where(Event.owner == target_username)).all()
+    safe_events = []
+    
+    for event in events:
+        is_participant = False
+        if event.participants:
+            participant_list = [p.strip() for p in event.participants.split(",")]
+            if current_user.username in participant_list:
+                is_participant = True
+
+        if event.is_public or event.owner == current_user.username or is_participant:
+            if event.description:
+                event.description = decrypt_text(event.description)
+            safe_events.append(event)
+        
+        else:
+            safe_event = Event.model_validate(event)
+            safe_event.title = "Foglalt"
+            safe_event.description = None
+            safe_event.meeting_link = None
+            safe_event.participants = None
+            safe_events.append(safe_event)
+            
+    return safe_events
 
 @router.get("", response_model=List[Event])
 async def read_events(
