@@ -602,27 +602,23 @@ export default function DashboardPage() {
                       <div className="text-sm text-green-400 mt-1">{formatListDate(event.start_date)} - {formatListDate(event.end_date)}</div>
                       {event.description && <p className="text-zinc-400 text-sm mt-2 italic truncate">{event.description}</p>}
                     </div>
-                    {event.owner !== user && (
-                      <>
-                        {event.participants?.split(',').map(p => p.trim()).includes(user || "") ? (
-                          /* HA MÁR CSATLAKOZOTT -> LEADÁS GOMB */
-                          <button 
-                            onClick={() => leaveEvent(event.id)}
-                            className="px-4 py-2 bg-zinc-800 border border-red-900/50 hover:bg-red-900/30 text-red-400 font-bold rounded text-sm shrink-0 shadow-lg transition-all"
-                          >
-                            - Leadás
-                          </button>
-                        ) : (
-                          /* HA MÉG NINCS BENNE -> FELVÉTEL GOMB */
-                          <button 
-                            onClick={() => joinEvent(event.id)}
-                            className="px-4 py-2 bg-green-700 hover:bg-green-600 text-white font-bold rounded text-sm shrink-0 shadow-lg transition-transform active:scale-95"
-                          >
-                            + Felvétel
-                          </button>
-                        )}
-                      </>
-                    )}
+                      {event.participants?.split(',').map(p => p.trim()).includes(user || "") ? (
+                        /* HA MÁR CSATLAKOZOTT -> LEADÁS GOMB */
+                        <button 
+                          onClick={() => leaveEvent(event.id)}
+                          className="px-4 py-2 bg-zinc-800 border border-red-900/50 hover:bg-red-900/30 text-red-400 font-bold rounded text-sm shrink-0 shadow-lg transition-all"
+                        >
+                          - Leadás
+                        </button>
+                      ) : (
+                        /* HA MÉG NINCS BENNE -> FELVÉTEL GOMB */
+                        <button 
+                          onClick={() => joinEvent(event.id)}
+                          className="px-4 py-2 bg-green-700 hover:bg-green-600 text-white font-bold rounded text-sm shrink-0 shadow-lg transition-transform active:scale-95"
+                        >
+                          + Felvétel
+                        </button>
+                      )}
                     {event.owner === user && <span className="text-zinc-500 text-xs px-3">Saját esemény</span>}
                   </div>
                 ))}

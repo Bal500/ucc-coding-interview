@@ -44,26 +44,27 @@ async def create_event(
     event.description = decrypt_text(event.description)
     return event
 
+
 @router.get("", response_model=List[Event])
 async def read_events(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-    """Események lekérése feloldott leírással"""
+    """Események lekérése - CSAK AZOK, AHOL RÉSZTVEVŐ VAGYOK"""
     all_events = session.exec(select(Event)).all()
     my_events = []
     
     for event in all_events:
-        is_relevant = False
-        if event.owner == current_user.username:
-            is_relevant = True
-        elif event.participants:
+        is_participant = False
+        
+        if event.participants:
             participant_list = [p.strip() for p in event.participants.split(",")]
             if current_user.username in participant_list:
-                is_relevant = True
+                is_participant = True
         
-        if is_relevant:
-            event.description = decrypt_text(event.description)
+        if is_participant:
+            if event.description:
+                event.description = decrypt_text(event.description)
             my_events.append(event)
     
     return my_events
