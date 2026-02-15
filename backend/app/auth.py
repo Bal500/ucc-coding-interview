@@ -33,7 +33,7 @@ async def login(data: LoginRequest, request: Request, session: Session = Depends
     # MFA bekapcsolva
     if user.mfa_enabled:
         if not data.mfa_code:
-            log_security_event(f"MFA SZÜKSÉGES - User: {user.username}")
+            log_security_event(f"MFA SZUKSEGES - User: {user.username}")
             raise HTTPException(status_code=403, detail="MFA_REQUIRED")
         
         totp = pyotp.totp.TOTP(user.mfa_secret)
@@ -152,7 +152,7 @@ async def request_reset(
     
     if user:
         client_ip = request.client.host if request.client else "Unknown"
-        logger.info(f"Jelszó visszaállítás kérése: {user.username} - IP: {client_ip}")
+        logger.info(f"Jelszo visszaallitas kerese: {user.username} - IP: {client_ip}")
         
         token = secrets.token_urlsafe(16)
         user.reset_token = token
